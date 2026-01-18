@@ -1,8 +1,12 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { ArrowLeft, MapPin, Clock, Wifi, Wind, Tv } from "lucide-react";
+import { ArrowLeft, MapPin, Clock, Wifi, Wind, Tv, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import PremiumTicket from "./PremiumTicket";
+import { useAuth } from "@/hooks/useAuth";
+import { useBooking } from "@/hooks/useBooking";
+import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
+import EnhancedTicket from "./EnhancedTicket";
 
 interface BusSeatSelectorProps {
   from: string;
@@ -74,10 +78,37 @@ const generateSeats = (): Seat[][] => {
 };
 
 const BusSeatSelector = ({ from, to, date, onBack }: BusSeatSelectorProps) => {
+  const { user } = useAuth();
+  const { createBooking, calculateDiscount, loading } = useBooking();
+  const navigate = useNavigate();
+
   const [selectedBus, setSelectedBus] = useState<string | null>(null);
   const [seats, setSeats] = useState<Seat[][]>(generateSeats());
   const [selectedSeats, setSelectedSeats] = useState<string[]>([]);
   const [showTicket, setShowTicket] = useState(false);
+  const [bookingResult, setBookingResult] = useState<{
+    finalPrice: number;
+    discountPercentage: number;
+    isStudentDiscount: boolean;
+    isEarlyUserDiscount: boolean;
+    qrData: string;
+  } | null>(null);
+  const [discountPreview, setDiscountPreview] = useState<{
+    discountPercentage: number;
+    isStudentDiscount: boolean;
+    isEarlyUserDiscount: boolean;
+  } | null>(null);
+
+  // Calculate discount preview when user is logged in
+  useEffect(() => {
+    const fetchDiscount = async () => {
+      if (user) {
+        const discount = await calculateDiscount();
+        setDiscountPreview(discount);
+      }
+    };
+    fetchDiscount();
+  }, [user, calculateDiscount]);
 
   const handleSeatClick = (rowIndex: number, seatIndex: number) => {
     const seat = seats[rowIndex][seatIndex];
@@ -85,7 +116,10 @@ const BusSeatSelector = ({ from, to, date, onBack }: BusSeatSelectorProps) => {
 
     const newSeats = [...seats];
     if (seat.status === "selected") {
-      newSeats[rowIndex][seatIndex] = { ...seat, status: seat.id.startsWith("A") || seat.id.startsWith("B") ? "women" : "available" };
+      newSeats[rowIndex][seatIndex] = { 
+        ...seat, 
+        status: seat.id.startsWith("A") || seat.id.startsWith("B") ? "women" : "available" 
+      };
       setSelectedSeats(selectedSeats.filter((s) => s !== seat.id));
     } else {
       newSeats[rowIndex][seatIndex] = { ...seat, status: "selected" };
@@ -107,18 +141,82 @@ const BusSeatSelector = ({ from, to, date, onBack }: BusSeatSelectorProps) => {
     }
   };
 
-  const totalPrice = selectedSeats.length * 850;
+  const selectedBusData = busOptions.find((b) => b.id === selectedBus);
+  const basePrice = selectedSeats.length * (selectedBusData?.price || 850);
+  const discountedPrice = discountPreview 
+    ? basePrice * (1 - discountPreview.discountPercentage / 100)
+    : basePrice;
 
-  if (showTicket) {
+  const handleBooking = async () => {
+    if (!user) {
+      toast.error("Please login to book tickets", {
+        action: {
+          label: "Login",
+          onClick: () => navigate("/auth"),
+        },
+      });
+      return;
+    }
+
+    if (selectedSeats.length === 0) {
+      toast.error("Please select at least one seat");
+      return;
+    }
+
+    const { result, error } = await createBooking({
+      booking_type: "bus",
+      from_location: from,
+      to_location: to,
+      travel_date: date,
+      seat_numbers: selectedSeats,
+      vehicle_info: {
+        bus_id: selectedBus,
+        bus_name: selectedBusData?.name,
+        departure: selectedBusData?.departure,
+        arrival: selectedBusData?.arrival,
+      },
+      base_price: basePrice,
+    });
+
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+
+    if (result) {
+      setBookingResult({
+        finalPrice: result.final_price,
+        discountPercentage: result.discount_percentage,
+        isStudentDiscount: result.is_student_discount,
+        isEarlyUserDiscount: result.is_early_user_discount,
+        qrData: result.qr_code_data,
+      });
+      setShowTicket(true);
+      toast.success("Booking confirmed! 🎉");
+    }
+  };
+
+  if (showTicket && bookingResult) {
     return (
-      <PremiumTicket
+      <EnhancedTicket
         from={from}
         to={to}
         date={date}
         seats={selectedSeats}
-        busName={busOptions.find((b) => b.id === selectedBus)?.name || "GO UNIFIED Premium AC"}
-        departure={busOptions.find((b) => b.id === selectedBus)?.departure || "06:00 AM"}
-        onClose={() => setShowTicket(false)}
+        busName={selectedBusData?.name || "GO UNIFIED Premium AC"}
+        departure={selectedBusData?.departure || "06:00 AM"}
+        basePrice={basePrice}
+        finalPrice={bookingResult.finalPrice}
+        discountPercentage={bookingResult.discountPercentage}
+        isStudentDiscount={bookingResult.isStudentDiscount}
+        isEarlyUserDiscount={bookingResult.isEarlyUserDiscount}
+        qrData={bookingResult.qrData}
+        onClose={() => {
+          setShowTicket(false);
+          setSelectedSeats([]);
+          setSelectedBus(null);
+          onBack();
+        }}
       />
     );
   }
@@ -152,6 +250,32 @@ const BusSeatSelector = ({ from, to, date, onBack }: BusSeatSelectorProps) => {
         </div>
         <p className="text-sm text-muted-foreground">{date}</p>
       </div>
+
+      {/* Discount Banner */}
+      {discountPreview && discountPreview.discountPercentage > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-gradient-to-r from-gold/20 to-secondary/20 border border-gold/30 rounded-xl p-4"
+        >
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-gold font-semibold">🎉 Special Offers Applied:</span>
+            {discountPreview.isEarlyUserDiscount && (
+              <span className="px-3 py-1 rounded-full bg-gold/20 text-gold text-sm font-medium">
+                Early User -15%
+              </span>
+            )}
+            {discountPreview.isStudentDiscount && (
+              <span className="px-3 py-1 rounded-full bg-secondary/20 text-secondary text-sm font-medium">
+                Student -10%
+              </span>
+            )}
+            <span className="text-foreground font-bold ml-auto">
+              Total: {discountPreview.discountPercentage}% OFF
+            </span>
+          </div>
+        </motion.div>
+      )}
 
       {!selectedBus ? (
         /* Bus Selection */
@@ -285,14 +409,39 @@ const BusSeatSelector = ({ from, to, date, onBack }: BusSeatSelectorProps) => {
                 </div>
                 <div className="text-right">
                   <p className="text-white/80 text-sm">Total Amount</p>
-                  <p className="text-3xl font-bold">₹{totalPrice}</p>
+                  {discountPreview && discountPreview.discountPercentage > 0 ? (
+                    <>
+                      <p className="text-lg line-through text-white/60">₹{basePrice}</p>
+                      <p className="text-3xl font-bold">₹{discountedPrice.toFixed(0)}</p>
+                      <span className="text-sm bg-white/20 px-2 py-0.5 rounded-full">
+                        {discountPreview.discountPercentage}% OFF
+                      </span>
+                    </>
+                  ) : (
+                    <p className="text-3xl font-bold">₹{basePrice}</p>
+                  )}
                 </div>
               </div>
+
+              {!user && (
+                <p className="text-white/80 text-sm mt-4 text-center">
+                  🔐 Login to book and avail special discounts
+                </p>
+              )}
+
               <Button
-                onClick={() => setShowTicket(true)}
+                onClick={handleBooking}
+                disabled={loading}
                 className="w-full mt-4 bg-white text-primary hover:bg-white/90 font-semibold py-6"
               >
-                Proceed to Book
+                {loading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Booking...
+                  </>
+                ) : (
+                  "Proceed to Book"
+                )}
               </Button>
             </motion.div>
           )}
