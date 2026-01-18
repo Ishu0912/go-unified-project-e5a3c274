@@ -1,7 +1,9 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Menu, X, Phone, Shield, Mic } from "lucide-react";
+import { Menu, X, Phone, Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import VoiceButton from "./VoiceButton";
+import UserMenu from "./UserMenu";
 
 const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -55,26 +57,21 @@ const Header = () => {
 
             {/* Actions */}
             <div className="hidden lg:flex items-center gap-3">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-muted-foreground hover:text-primary"
-              >
-                <Mic className="w-4 h-4 mr-2" />
-                Voice
-              </Button>
+              <VoiceButton variant="header" />
               <Button
                 variant="destructive"
                 size="sm"
                 className="bg-destructive hover:bg-destructive/90"
+                data-sos-button
               >
                 <Shield className="w-4 h-4 mr-2" />
                 SOS
               </Button>
-              <Button variant="default" size="sm">
+              <Button variant="ghost" size="sm">
                 <Phone className="w-4 h-4 mr-2" />
                 Support
               </Button>
+              <UserMenu />
             </div>
 
             {/* Mobile Menu Button */}
@@ -113,14 +110,11 @@ const Header = () => {
                 </a>
               ))}
               <div className="flex gap-2 pt-4 border-t border-border">
-                <Button variant="destructive" size="sm" className="flex-1">
+                <Button variant="destructive" size="sm" className="flex-1" data-sos-button>
                   <Shield className="w-4 h-4 mr-2" />
                   SOS
                 </Button>
-                <Button variant="default" size="sm" className="flex-1">
-                  <Mic className="w-4 h-4 mr-2" />
-                  Voice
-                </Button>
+                <VoiceButton variant="header" className="flex-1" />
               </div>
             </nav>
           </motion.div>

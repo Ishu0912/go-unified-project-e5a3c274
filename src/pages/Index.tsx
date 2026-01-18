@@ -4,6 +4,7 @@ import BookingTabs from "@/components/BookingTabs";
 import LiveTracking from "@/components/LiveTracking";
 import AIAssistant from "@/components/AIAssistant";
 import SOSButton from "@/components/SOSButton";
+import VoiceButton from "@/components/VoiceButton";
 
 const Index = () => {
   return (
@@ -30,6 +31,7 @@ const Index = () => {
       {/* Floating Components */}
       <AIAssistant />
       <SOSButton />
+      <VoiceButton variant="floating" />
     </div>
   );
 };
