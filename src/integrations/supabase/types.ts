@@ -14,13 +14,110 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      bookings: {
+        Row: {
+          base_price: number
+          booking_type: string
+          created_at: string
+          discount_percentage: number | null
+          final_price: number
+          from_location: string
+          id: string
+          is_early_user_discount: boolean | null
+          is_student_discount: boolean | null
+          qr_code_data: string | null
+          seat_numbers: string[] | null
+          status: string | null
+          to_location: string
+          travel_date: string
+          updated_at: string
+          user_id: string
+          vehicle_info: Json | null
+        }
+        Insert: {
+          base_price: number
+          booking_type: string
+          created_at?: string
+          discount_percentage?: number | null
+          final_price: number
+          from_location: string
+          id?: string
+          is_early_user_discount?: boolean | null
+          is_student_discount?: boolean | null
+          qr_code_data?: string | null
+          seat_numbers?: string[] | null
+          status?: string | null
+          to_location: string
+          travel_date: string
+          updated_at?: string
+          user_id: string
+          vehicle_info?: Json | null
+        }
+        Update: {
+          base_price?: number
+          booking_type?: string
+          created_at?: string
+          discount_percentage?: number | null
+          final_price?: number
+          from_location?: string
+          id?: string
+          is_early_user_discount?: boolean | null
+          is_student_discount?: boolean | null
+          qr_code_data?: string | null
+          seat_numbers?: string[] | null
+          status?: string | null
+          to_location?: string
+          travel_date?: string
+          updated_at?: string
+          user_id?: string
+          vehicle_info?: Json | null
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          full_name: string | null
+          id: string
+          is_student: boolean | null
+          phone: string | null
+          photo_url: string | null
+          student_id: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          full_name?: string | null
+          id?: string
+          is_student?: boolean | null
+          phone?: string | null
+          photo_url?: string | null
+          student_id?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          full_name?: string | null
+          id?: string
+          is_student?: boolean | null
+          phone?: string | null
+          photo_url?: string | null
+          student_id?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      get_total_booking_count: { Args: never; Returns: number }
+      is_early_user: { Args: never; Returns: boolean }
+      is_student_user: { Args: { _user_id: string }; Returns: boolean }
     }
     Enums: {
       [_ in never]: never
