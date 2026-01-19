@@ -1,9 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { motion } from "framer-motion";
-import { ArrowLeft, MapPin, Clock, Wifi, Wind, Tv, Loader2 } from "lucide-react";
+import { ArrowLeft, MapPin, Clock, Wifi, Wind, Tv, Loader2, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import { useBooking } from "@/hooks/useBooking";
+import { useRealtimeSeats } from "@/hooks/useRealtimeSeats";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import EnhancedTicket from "./EnhancedTicket";
@@ -59,23 +60,18 @@ const busOptions = [
   },
 ];
 
-// Generate seats layout
-const generateSeats = (): Seat[][] => {
-  const rows: Seat[][] = [];
+// Generate all seat IDs
+const generateAllSeatIds = (): string[] => {
+  const seatIds: string[] = [];
   for (let i = 0; i < 10; i++) {
-    const row: Seat[] = [];
     for (let j = 0; j < 4; j++) {
-      const seatNum = `${String.fromCharCode(65 + j)}${i + 1}`;
-      const random = Math.random();
-      let status: SeatStatus = "available";
-      if (random < 0.3) status = "booked";
-      else if (random < 0.4 && j < 2) status = "women";
-      row.push({ id: seatNum, status, price: 850 });
+      seatIds.push(`${String.fromCharCode(65 + j)}${i + 1}`);
     }
-    rows.push(row);
   }
-  return rows;
+  return seatIds;
 };
+
+const ALL_SEATS = generateAllSeatIds();
 
 const BusSeatSelector = ({ from, to, date, onBack }: BusSeatSelectorProps) => {
   const { user } = useAuth();
@@ -83,7 +79,6 @@ const BusSeatSelector = ({ from, to, date, onBack }: BusSeatSelectorProps) => {
   const navigate = useNavigate();
 
   const [selectedBus, setSelectedBus] = useState<string | null>(null);
-  const [seats, setSeats] = useState<Seat[][]>(generateSeats());
   const [selectedSeats, setSelectedSeats] = useState<string[]>([]);
   const [showTicket, setShowTicket] = useState(false);
   const [bookingResult, setBookingResult] = useState<{
@@ -98,6 +93,39 @@ const BusSeatSelector = ({ from, to, date, onBack }: BusSeatSelectorProps) => {
     isStudentDiscount: boolean;
     isEarlyUserDiscount: boolean;
   } | null>(null);
+
+  // Real-time seat availability
+  const { bookedSeats, loading: seatsLoading, refetch } = useRealtimeSeats(
+    selectedBus || "",
+    date,
+    from,
+    to
+  );
+
+  // Generate seats based on realtime booked data
+  const seats = useMemo((): Seat[][] => {
+    const rows: Seat[][] = [];
+    for (let i = 0; i < 10; i++) {
+      const row: Seat[] = [];
+      for (let j = 0; j < 4; j++) {
+        const seatNum = `${String.fromCharCode(65 + j)}${i + 1}`;
+        let status: SeatStatus = "available";
+        
+        if (bookedSeats.includes(seatNum)) {
+          status = "booked";
+        } else if (selectedSeats.includes(seatNum)) {
+          status = "selected";
+        } else if (j < 2) {
+          // First two columns are women-only by default
+          status = "women";
+        }
+        
+        row.push({ id: seatNum, status, price: 850 });
+      }
+      rows.push(row);
+    }
+    return rows;
+  }, [bookedSeats, selectedSeats]);
 
   // Calculate discount preview when user is logged in
   useEffect(() => {
@@ -114,18 +142,12 @@ const BusSeatSelector = ({ from, to, date, onBack }: BusSeatSelectorProps) => {
     const seat = seats[rowIndex][seatIndex];
     if (seat.status === "booked") return;
 
-    const newSeats = [...seats];
-    if (seat.status === "selected") {
-      newSeats[rowIndex][seatIndex] = { 
-        ...seat, 
-        status: seat.id.startsWith("A") || seat.id.startsWith("B") ? "women" : "available" 
-      };
-      setSelectedSeats(selectedSeats.filter((s) => s !== seat.id));
+    const seatId = seat.id;
+    if (selectedSeats.includes(seatId)) {
+      setSelectedSeats(selectedSeats.filter((s) => s !== seatId));
     } else {
-      newSeats[rowIndex][seatIndex] = { ...seat, status: "selected" };
-      setSelectedSeats([...selectedSeats, seat.id]);
+      setSelectedSeats([...selectedSeats, seatId]);
     }
-    setSeats(newSeats);
   };
 
   const getSeatColor = (status: SeatStatus) => {
@@ -211,6 +233,13 @@ const BusSeatSelector = ({ from, to, date, onBack }: BusSeatSelectorProps) => {
         isStudentDiscount={bookingResult.isStudentDiscount}
         isEarlyUserDiscount={bookingResult.isEarlyUserDiscount}
         qrData={bookingResult.qrData}
+        bookingType="bus"
+        vehicleInfo={{
+          bus_id: selectedBus,
+          bus_name: selectedBusData?.name,
+          departure: selectedBusData?.departure,
+          arrival: selectedBusData?.arrival,
+        }}
         onClose={() => {
           setShowTicket(false);
           setSelectedSeats([]);
@@ -332,7 +361,28 @@ const BusSeatSelector = ({ from, to, date, onBack }: BusSeatSelectorProps) => {
               <ArrowLeft className="w-4 h-4 mr-2" />
               Change Bus
             </Button>
-            <h3 className="text-lg font-semibold">Select Your Seats</h3>
+            <div className="flex items-center gap-3">
+              <h3 className="text-lg font-semibold">Select Your Seats</h3>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={refetch}
+                disabled={seatsLoading}
+                className="gap-2"
+              >
+                <RefreshCw className={`w-4 h-4 ${seatsLoading ? 'animate-spin' : ''}`} />
+                {seatsLoading ? 'Updating...' : 'Refresh'}
+              </Button>
+            </div>
+          </div>
+
+          {/* Realtime Indicator */}
+          <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-success opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-success"></span>
+            </span>
+            <span>Live seat availability • Updates in real-time</span>
           </div>
 
           {/* Legend */}

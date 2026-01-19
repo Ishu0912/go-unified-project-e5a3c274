@@ -1,9 +1,11 @@
 import { motion } from "framer-motion";
-import { X, Download, Shield, MapPin, Phone, User, GraduationCap, Star, CheckCircle } from "lucide-react";
+import { X, Download, Printer, Shield, MapPin, Phone, User, GraduationCap, Star, CheckCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { QRCodeSVG } from "qrcode.react";
 import { useAuth } from "@/hooks/useAuth";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { downloadTicket, printTicket, TicketData } from "@/utils/ticketDownload";
+import { toast } from "sonner";
 
 interface EnhancedTicketProps {
   from: string;
@@ -19,6 +21,8 @@ interface EnhancedTicketProps {
   isEarlyUserDiscount: boolean;
   qrData: string;
   onClose: () => void;
+  bookingType?: string;
+  vehicleInfo?: Record<string, unknown>;
 }
 
 const EnhancedTicket = ({
@@ -35,6 +39,8 @@ const EnhancedTicket = ({
   isEarlyUserDiscount,
   qrData,
   onClose,
+  bookingType = "bus",
+  vehicleInfo,
 }: EnhancedTicketProps) => {
   const { profile } = useAuth();
   const ticketId = `GOUNIFIED-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
@@ -44,6 +50,36 @@ const EnhancedTicket = ({
     .map((n) => n[0])
     .join("")
     .toUpperCase() || "U";
+
+  const ticketData: TicketData = {
+    ticketId,
+    passengerName: profile?.full_name || "Passenger",
+    phone: profile?.phone || undefined,
+    photoUrl: profile?.photo_url || undefined,
+    from,
+    to,
+    date,
+    departure,
+    seats,
+    vehicleName: busName,
+    bookingType,
+    basePrice,
+    finalPrice,
+    discountPercentage,
+    isStudentDiscount,
+    isEarlyUserDiscount,
+    qrData,
+    vehicleInfo,
+  };
+
+  const handleDownload = () => {
+    downloadTicket(ticketData);
+    toast.success("Ticket downloaded successfully!");
+  };
+
+  const handlePrint = () => {
+    printTicket(ticketData);
+  };
 
   return (
     <motion.div
@@ -226,10 +262,14 @@ const EnhancedTicket = ({
           </div>
 
           {/* Footer */}
-          <div className="p-6 bg-white/5 flex justify-center">
-            <Button className="btn-premium gap-2">
+          <div className="p-6 bg-white/5 flex justify-center gap-3">
+            <Button onClick={handleDownload} className="btn-premium gap-2">
               <Download className="w-4 h-4" />
-              Download Ticket
+              Download
+            </Button>
+            <Button onClick={handlePrint} variant="outline" className="gap-2 text-white border-white/30 hover:bg-white/10">
+              <Printer className="w-4 h-4" />
+              Print
             </Button>
           </div>
         </div>

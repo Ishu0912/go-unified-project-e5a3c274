@@ -225,6 +225,20 @@ const BookingTabs = () => {
   };
 
   if (showTicket && bookingResult) {
+    const vehicleInfo: Record<string, unknown> = {};
+    if (bookingResult.bookingType === "cab") {
+      vehicleInfo.cab_type = bookingDetails.cabType;
+      vehicleInfo.distance = getDistance();
+      vehicleInfo.passengers = bookingDetails.passengers;
+    } else if (bookingResult.bookingType === "rental") {
+      vehicleInfo.rental_type = bookingDetails.rentalType;
+      vehicleInfo.pickup_time = bookingDetails.pickupTime;
+      vehicleInfo.return_date = bookingDetails.returnDate;
+    } else if (bookingResult.bookingType === "flight") {
+      vehicleInfo.flight_class = bookingDetails.flightClass;
+      vehicleInfo.passengers = bookingDetails.passengers;
+    }
+
     return (
       <section id="booking" className="py-20 bg-muted/30">
         <div className="container mx-auto px-6 max-w-2xl">
@@ -247,6 +261,8 @@ const BookingTabs = () => {
             isStudentDiscount={bookingResult.isStudentDiscount}
             isEarlyUserDiscount={bookingResult.isEarlyUserDiscount}
             qrData={bookingResult.qrData}
+            bookingType={bookingResult.bookingType}
+            vehicleInfo={vehicleInfo}
             onClose={() => {
               setShowTicket(false);
               setBookingResult(null);
