@@ -10,6 +10,8 @@ interface Profile {
   photo_url: string | null;
   is_student: boolean;
   student_id: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 interface AuthContextType {
