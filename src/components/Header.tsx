@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Menu, X, Phone, Shield } from "lucide-react";
+import { Menu, X, Phone, Shield, Ticket } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Link } from "react-router-dom";
 import VoiceButton from "./VoiceButton";
 import UserMenu from "./UserMenu";
 
@@ -57,6 +58,12 @@ const Header = () => {
 
             {/* Actions */}
             <div className="hidden lg:flex items-center gap-3">
+              <Link to="/bookings">
+                <Button variant="ghost" size="sm" className="gap-2">
+                  <Ticket className="w-4 h-4" />
+                  My Bookings
+                </Button>
+              </Link>
               <VoiceButton variant="header" />
               <Button
                 variant="destructive"
@@ -109,6 +116,14 @@ const Header = () => {
                   {link.name}
                 </a>
               ))}
+              <Link
+                to="/bookings"
+                onClick={() => setIsMenuOpen(false)}
+                className="text-foreground/80 hover:text-primary transition-colors py-2 flex items-center gap-2"
+              >
+                <Ticket className="w-4 h-4" />
+                My Bookings
+              </Link>
               <div className="flex gap-2 pt-4 border-t border-border">
                 <Button variant="destructive" size="sm" className="flex-1" data-sos-button>
                   <Shield className="w-4 h-4 mr-2" />
