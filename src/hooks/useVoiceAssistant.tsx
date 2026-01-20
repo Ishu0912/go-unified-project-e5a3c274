@@ -21,47 +21,93 @@ export const useVoiceAssistant = () => {
     setIsSupported(supported);
   }, []);
 
-  // Voice commands for navigation and booking
+  // Voice commands for navigation and booking - supports natural language
   const voiceCommands: VoiceCommand[] = [
     {
       command: "book bus",
-      keywords: ["book bus", "bus booking", "book a bus", "பேருந்து புக்", "bus ticket"],
+      keywords: [
+        // Direct commands
+        "book bus", "bus booking", "book a bus", "bus ticket",
+        // Natural language variations
+        "i want to book a bus", "i want bus", "want to book bus", "need a bus",
+        "i need to book a bus", "book me a bus", "get me a bus ticket",
+        "i would like to book a bus", "can you book a bus", "help me book a bus",
+        "bus please", "show bus booking", "open bus booking",
+        // Tamil
+        "பேருந்து புக்", "பேருந்து வேண்டும்"
+      ],
       action: () => {
-        const busTab = document.querySelector('[data-booking-tab="bus"]') as HTMLElement;
-        if (busTab) busTab.click();
+        // Scroll to booking section and click bus tab
+        document.querySelector('#booking')?.scrollIntoView({ behavior: 'smooth' });
+        setTimeout(() => {
+          const busTab = document.querySelector('[value="bus"]') as HTMLElement;
+          if (busTab) busTab.click();
+        }, 300);
         speak("Opening bus booking. Please select your origin and destination.");
       },
     },
     {
       command: "book cab",
-      keywords: ["book cab", "cab booking", "book a cab", "taxi", "book taxi", "கேப் புக்"],
+      keywords: [
+        "book cab", "cab booking", "book a cab", "taxi", "book taxi",
+        "i want to book a cab", "i want cab", "want to book cab", "need a cab",
+        "i need to book a cab", "book me a cab", "get me a taxi",
+        "i would like to book a cab", "can you book a cab", "help me book a cab",
+        "cab please", "show cab booking", "open cab booking",
+        "கேப் புக்", "டாக்சி வேண்டும்"
+      ],
       action: () => {
-        const cabTab = document.querySelector('[data-booking-tab="cab"]') as HTMLElement;
-        if (cabTab) cabTab.click();
+        document.querySelector('#booking')?.scrollIntoView({ behavior: 'smooth' });
+        setTimeout(() => {
+          const cabTab = document.querySelector('[value="cab"]') as HTMLElement;
+          if (cabTab) cabTab.click();
+        }, 300);
         speak("Opening cab booking. Where would you like to go?");
       },
     },
     {
       command: "book flight",
-      keywords: ["book flight", "flight booking", "fly", "airplane", "விமானம்"],
+      keywords: [
+        "book flight", "flight booking", "fly", "airplane", "flight ticket",
+        "i want to book a flight", "i want flight", "want to book flight", "need a flight",
+        "i need to book a flight", "book me a flight", "get me a flight ticket",
+        "i would like to fly", "can you book a flight", "help me book a flight",
+        "flight please", "show flight booking", "open flight booking",
+        "விமானம்", "விமான டிக்கெட்"
+      ],
       action: () => {
-        const flightTab = document.querySelector('[data-booking-tab="flight"]') as HTMLElement;
-        if (flightTab) flightTab.click();
+        document.querySelector('#booking')?.scrollIntoView({ behavior: 'smooth' });
+        setTimeout(() => {
+          const flightTab = document.querySelector('[value="flight"]') as HTMLElement;
+          if (flightTab) flightTab.click();
+        }, 300);
         speak("Opening flight booking.");
       },
     },
     {
       command: "rent car",
-      keywords: ["rent car", "car rental", "rent a car", "rental", "கார் வாடகை"],
+      keywords: [
+        "rent car", "car rental", "rent a car", "rental",
+        "i want to rent a car", "need a rental car", "book a rental",
+        "i need to rent a car", "help me rent a car", "car rental please",
+        "கார் வாடகை"
+      ],
       action: () => {
-        const rentalTab = document.querySelector('[data-booking-tab="rental"]') as HTMLElement;
-        if (rentalTab) rentalTab.click();
+        document.querySelector('#booking')?.scrollIntoView({ behavior: 'smooth' });
+        setTimeout(() => {
+          const rentalTab = document.querySelector('[value="rental"]') as HTMLElement;
+          if (rentalTab) rentalTab.click();
+        }, 300);
         speak("Opening car rental section.");
       },
     },
     {
       command: "emergency",
-      keywords: ["emergency", "sos", "help me", "urgent help", "உதவி", "அவசரம்", "danger"],
+      keywords: [
+        "emergency", "sos", "help me", "urgent help", "danger", "i need help",
+        "i am in danger", "please help", "call police", "women helpline",
+        "உதவி", "அவசரம்", "ஆபத்து"
+      ],
       action: () => {
         const sosButton = document.querySelector('[data-sos-button]') as HTMLElement;
         if (sosButton) sosButton.click();
@@ -70,15 +116,35 @@ export const useVoiceAssistant = () => {
     },
     {
       command: "track bus",
-      keywords: ["track bus", "where is my bus", "bus location", "tracking", "எங்கே"],
+      keywords: [
+        "track bus", "where is my bus", "bus location", "tracking", "track my trip",
+        "where is my cab", "track my booking", "show tracking",
+        "எங்கே", "எங்கே இருக்கிறது"
+      ],
       action: () => {
         document.querySelector('#track')?.scrollIntoView({ behavior: 'smooth' });
         speak("Showing live tracking section.");
       },
     },
     {
+      command: "my bookings",
+      keywords: [
+        "my bookings", "show bookings", "booking history", "my trips", "view bookings",
+        "show my bookings", "past bookings", "previous bookings",
+        "என் புக்கிங்ஸ்"
+      ],
+      action: () => {
+        window.location.href = "/bookings";
+        speak("Opening your bookings page.");
+      },
+    },
+    {
       command: "login",
-      keywords: ["login", "sign in", "log in", "signin", "account", "உள்நுழை"],
+      keywords: [
+        "login", "sign in", "log in", "signin", "account",
+        "i want to login", "open login", "go to login",
+        "உள்நுழை"
+      ],
       action: () => {
         window.location.href = "/auth";
         speak("Redirecting to login page.");
@@ -86,7 +152,11 @@ export const useVoiceAssistant = () => {
     },
     {
       command: "profile",
-      keywords: ["profile", "my profile", "settings", "account settings", "சுயவிவரம்"],
+      keywords: [
+        "profile", "my profile", "settings", "account settings",
+        "open profile", "go to profile", "edit profile",
+        "சுயவிவரம்"
+      ],
       action: () => {
         window.location.href = "/profile";
         speak("Opening your profile settings.");
@@ -94,10 +164,25 @@ export const useVoiceAssistant = () => {
     },
     {
       command: "go to booking",
-      keywords: ["booking section", "go to booking", "book now", "புக்கிங்"],
+      keywords: [
+        "booking section", "go to booking", "book now", "show booking",
+        "i want to book", "book something", "make a booking",
+        "புக்கிங்"
+      ],
       action: () => {
         document.querySelector('#booking')?.scrollIntoView({ behavior: 'smooth' });
         speak("Scrolling to booking section.");
+      },
+    },
+    {
+      command: "go home",
+      keywords: [
+        "go home", "home page", "main page", "back to home",
+        "முகப்பு பக்கம்"
+      ],
+      action: () => {
+        window.location.href = "/";
+        speak("Going to home page.");
       },
     },
   ];
