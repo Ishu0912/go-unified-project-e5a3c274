@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 
 interface VoiceCommand {
@@ -11,38 +11,66 @@ export const useVoiceAssistant = () => {
   const [isListening, setIsListening] = useState(false);
   const [transcript, setTranscript] = useState("");
   const [isSupported, setIsSupported] = useState(true);
+  const [interimTranscript, setInterimTranscript] = useState("");
   const recognitionRef = useRef<any>(null);
   const { toast } = useToast();
+
+  // Check support on mount
+  useEffect(() => {
+    const supported = 'webkitSpeechRecognition' in window || 'SpeechRecognition' in window;
+    setIsSupported(supported);
+  }, []);
 
   // Voice commands for navigation and booking
   const voiceCommands: VoiceCommand[] = [
     {
       command: "book bus",
-      keywords: ["book", "bus", "பேருந்து"],
+      keywords: ["book bus", "bus booking", "book a bus", "பேருந்து புக்", "bus ticket"],
       action: () => {
-        document.querySelector('[data-booking-tab="bus"]')?.dispatchEvent(new Event('click', { bubbles: true }));
-        speak("Opening bus booking. Please tell me your destination.");
+        const busTab = document.querySelector('[data-booking-tab="bus"]') as HTMLElement;
+        if (busTab) busTab.click();
+        speak("Opening bus booking. Please select your origin and destination.");
       },
     },
     {
       command: "book cab",
-      keywords: ["book", "cab", "taxi", "கேப்"],
+      keywords: ["book cab", "cab booking", "book a cab", "taxi", "book taxi", "கேப் புக்"],
       action: () => {
-        document.querySelector('[data-booking-tab="cab"]')?.dispatchEvent(new Event('click', { bubbles: true }));
+        const cabTab = document.querySelector('[data-booking-tab="cab"]') as HTMLElement;
+        if (cabTab) cabTab.click();
         speak("Opening cab booking. Where would you like to go?");
       },
     },
     {
-      command: "emergency",
-      keywords: ["emergency", "sos", "help", "உதவி", "அவசரம்"],
+      command: "book flight",
+      keywords: ["book flight", "flight booking", "fly", "airplane", "விமானம்"],
       action: () => {
-        document.querySelector('[data-sos-button]')?.dispatchEvent(new Event('click', { bubbles: true }));
+        const flightTab = document.querySelector('[data-booking-tab="flight"]') as HTMLElement;
+        if (flightTab) flightTab.click();
+        speak("Opening flight booking.");
+      },
+    },
+    {
+      command: "rent car",
+      keywords: ["rent car", "car rental", "rent a car", "rental", "கார் வாடகை"],
+      action: () => {
+        const rentalTab = document.querySelector('[data-booking-tab="rental"]') as HTMLElement;
+        if (rentalTab) rentalTab.click();
+        speak("Opening car rental section.");
+      },
+    },
+    {
+      command: "emergency",
+      keywords: ["emergency", "sos", "help me", "urgent help", "உதவி", "அவசரம்", "danger"],
+      action: () => {
+        const sosButton = document.querySelector('[data-sos-button]') as HTMLElement;
+        if (sosButton) sosButton.click();
         speak("Opening emergency assistance. Your safety is our priority.");
       },
     },
     {
       command: "track bus",
-      keywords: ["track", "where", "location", "எங்கே"],
+      keywords: ["track bus", "where is my bus", "bus location", "tracking", "எங்கே"],
       action: () => {
         document.querySelector('#track')?.scrollIntoView({ behavior: 'smooth' });
         speak("Showing live tracking section.");
@@ -50,42 +78,110 @@ export const useVoiceAssistant = () => {
     },
     {
       command: "login",
-      keywords: ["login", "sign in", "account", "உள்நுழை"],
+      keywords: ["login", "sign in", "log in", "signin", "account", "உள்நுழை"],
       action: () => {
         window.location.href = "/auth";
         speak("Redirecting to login page.");
+      },
+    },
+    {
+      command: "profile",
+      keywords: ["profile", "my profile", "settings", "account settings", "சுயவிவரம்"],
+      action: () => {
+        window.location.href = "/profile";
+        speak("Opening your profile settings.");
+      },
+    },
+    {
+      command: "go to booking",
+      keywords: ["booking section", "go to booking", "book now", "புக்கிங்"],
+      action: () => {
+        document.querySelector('#booking')?.scrollIntoView({ behavior: 'smooth' });
+        speak("Scrolling to booking section.");
       },
     },
   ];
 
   const speak = useCallback((text: string) => {
     if ('speechSynthesis' in window) {
+      // Cancel any ongoing speech
+      speechSynthesis.cancel();
+      
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = 'en-IN';
       utterance.rate = 0.9;
       utterance.pitch = 1;
+      utterance.volume = 1;
+      
+      // Try to use an Indian English voice
+      const voices = speechSynthesis.getVoices();
+      const indianVoice = voices.find(v => v.lang === 'en-IN') || voices.find(v => v.lang.startsWith('en'));
+      if (indianVoice) {
+        utterance.voice = indianVoice;
+      }
+      
       speechSynthesis.speak(utterance);
     }
   }, []);
 
   const processCommand = useCallback((text: string) => {
-    const lowerText = text.toLowerCase();
+    const lowerText = text.toLowerCase().trim();
+    
+    // Find the best matching command
+    let bestMatch: VoiceCommand | null = null;
+    let bestScore = 0;
     
     for (const cmd of voiceCommands) {
-      const hasKeyword = cmd.keywords.some(keyword => 
-        lowerText.includes(keyword.toLowerCase())
-      );
-      
-      if (hasKeyword) {
-        cmd.action();
-        return true;
+      for (const keyword of cmd.keywords) {
+        const keywordLower = keyword.toLowerCase();
+        
+        // Exact match
+        if (lowerText === keywordLower) {
+          bestMatch = cmd;
+          bestScore = 100;
+          break;
+        }
+        
+        // Contains keyword
+        if (lowerText.includes(keywordLower)) {
+          const score = keywordLower.length / lowerText.length * 80;
+          if (score > bestScore) {
+            bestScore = score;
+            bestMatch = cmd;
+          }
+        }
+        
+        // Keyword contains input (for partial matches)
+        if (keywordLower.includes(lowerText) && lowerText.length > 3) {
+          const score = lowerText.length / keywordLower.length * 60;
+          if (score > bestScore) {
+            bestScore = score;
+            bestMatch = cmd;
+          }
+        }
       }
+      
+      if (bestScore === 100) break;
+    }
+    
+    if (bestMatch && bestScore > 30) {
+      toast({
+        title: "Command Recognized",
+        description: `Executing: ${bestMatch.command}`,
+      });
+      bestMatch.action();
+      return true;
     }
 
     // If no command matched, provide helpful response
-    speak("I didn't understand that command. You can say: book bus, book cab, track bus, or emergency for help.");
+    toast({
+      title: "Command Not Recognized",
+      description: `You said: "${text}"`,
+      variant: "default",
+    });
+    speak("I didn't understand that command. Try saying: book bus, book cab, track bus, or emergency for help.");
     return false;
-  }, [speak, voiceCommands]);
+  }, [speak, toast, voiceCommands]);
 
   const startListening = useCallback(() => {
     if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
@@ -98,35 +194,58 @@ export const useVoiceAssistant = () => {
       return;
     }
 
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    const recognition = new SpeechRecognition();
+    // Stop any existing recognition
+    if (recognitionRef.current) {
+      recognitionRef.current.stop();
+    }
+
+    const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const recognition = new SpeechRecognitionAPI();
     
-    recognition.continuous = false;
+    recognition.continuous = true;
     recognition.interimResults = true;
     recognition.lang = 'en-IN';
+    recognition.maxAlternatives = 3;
 
     recognition.onstart = () => {
       setIsListening(true);
+      setTranscript("");
+      setInterimTranscript("");
       speak("I'm listening. How can I help you?");
     };
 
-    recognition.onresult = (event) => {
-      let finalTranscript = '';
+    recognition.onresult = (event: any) => {
+      let finalText = '';
+      let interimText = '';
       
       for (let i = event.resultIndex; i < event.results.length; i++) {
-        const transcript = event.results[i][0].transcript;
-        if (event.results[i].isFinal) {
-          finalTranscript += transcript;
+        const result = event.results[i];
+        const transcriptText = result[0].transcript;
+        
+        if (result.isFinal) {
+          finalText += transcriptText;
+        } else {
+          interimText += transcriptText;
         }
       }
 
-      if (finalTranscript) {
-        setTranscript(finalTranscript);
-        processCommand(finalTranscript);
+      if (interimText) {
+        setInterimTranscript(interimText);
+      }
+
+      if (finalText) {
+        setTranscript(finalText);
+        setInterimTranscript("");
+        processCommand(finalText);
+        
+        // Stop after processing a command
+        setTimeout(() => {
+          recognition.stop();
+        }, 500);
       }
     };
 
-    recognition.onerror = (event) => {
+    recognition.onerror = (event: any) => {
       console.error('Speech recognition error:', event.error);
       setIsListening(false);
       
@@ -136,21 +255,44 @@ export const useVoiceAssistant = () => {
           description: "Please allow microphone access to use voice commands.",
           variant: "destructive",
         });
+      } else if (event.error === 'no-speech') {
+        toast({
+          title: "No Speech Detected",
+          description: "Please speak clearly into your microphone.",
+        });
+      } else if (event.error !== 'aborted') {
+        toast({
+          title: "Voice Recognition Error",
+          description: "Please try again.",
+          variant: "destructive",
+        });
       }
     };
 
     recognition.onend = () => {
       setIsListening(false);
+      setInterimTranscript("");
     };
 
     recognitionRef.current = recognition;
-    recognition.start();
+    
+    try {
+      recognition.start();
+    } catch (error) {
+      console.error('Failed to start recognition:', error);
+      toast({
+        title: "Failed to Start",
+        description: "Voice recognition failed to start. Please try again.",
+        variant: "destructive",
+      });
+    }
   }, [processCommand, speak, toast]);
 
   const stopListening = useCallback(() => {
     if (recognitionRef.current) {
       recognitionRef.current.stop();
       setIsListening(false);
+      setInterimTranscript("");
     }
   }, []);
 
@@ -166,6 +308,7 @@ export const useVoiceAssistant = () => {
     isListening,
     isSupported,
     transcript,
+    interimTranscript,
     startListening,
     stopListening,
     toggleListening,
