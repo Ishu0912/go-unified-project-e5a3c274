@@ -1,7 +1,7 @@
 import Header from "@/components/Header";
 import HeroSection from "@/components/HeroSection";
 import BookingTabs from "@/components/BookingTabs";
-import LiveTracking from "@/components/LiveTracking";
+import GoogleMapTracking from "@/components/GoogleMapTracking";
 import AIAssistant from "@/components/AIAssistant";
 import SOSButton from "@/components/SOSButton";
 import VoiceButton from "@/components/VoiceButton";
@@ -12,7 +12,7 @@ const Index = () => {
       <Header />
       <HeroSection />
       <BookingTabs />
-      <LiveTracking />
+      <GoogleMapTracking />
       
       {/* Footer */}
       <footer className="bg-ocean-dark text-white py-12">
