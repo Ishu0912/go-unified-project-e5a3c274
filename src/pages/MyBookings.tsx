@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { 
@@ -13,15 +13,20 @@ import {
   CarFront, 
   Plane,
   Eye,
-  Navigation
+  Navigation,
+  Star,
+  Edit,
+  MessageSquare
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useAuth } from "@/hooks/useAuth";
 import { useBooking } from "@/hooks/useBooking";
+import { useReviews } from "@/hooks/useReviews";
 import { downloadTicket, TicketData } from "@/utils/ticketDownload";
 import { toast } from "sonner";
 import Header from "@/components/Header";
+import ReviewModal from "@/components/ReviewModal";
 
 interface Booking {
   id: string;
@@ -41,14 +46,25 @@ interface Booking {
   created_at: string;
 }
 
+interface Review {
+  id: string;
+  booking_id: string;
+  rating: number;
+  review_text: string | null;
+}
+
 const MyBookings = () => {
   const { user, profile, loading: authLoading } = useAuth();
   const { getBookings } = useBooking();
+  const { getReviewsForUser } = useReviews();
   const navigate = useNavigate();
   const [bookings, setBookings] = useState<Booking[]>([]);
+  const [reviews, setReviews] = useState<Review[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [activeTab, setActiveTab] = useState("all");
+  const [reviewModalOpen, setReviewModalOpen] = useState(false);
+  const [reviewBooking, setReviewBooking] = useState<Booking | null>(null);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -58,6 +74,7 @@ const MyBookings = () => {
 
     if (user) {
       loadBookings();
+      loadReviews();
     }
   }, [user, authLoading, navigate]);
 
@@ -68,6 +85,16 @@ const MyBookings = () => {
       setBookings(data as Booking[]);
     }
     setLoading(false);
+  };
+
+  const loadReviews = useCallback(async () => {
+    if (!user) return;
+    const userReviews = await getReviewsForUser(user.id);
+    setReviews(userReviews);
+  }, [user, getReviewsForUser]);
+
+  const getReviewForBooking = (bookingId: string): Review | undefined => {
+    return reviews.find(r => r.booking_id === bookingId);
   };
 
   const getBookingIcon = (type: string) => {
@@ -154,6 +181,15 @@ const MyBookings = () => {
       default:
         return "Vehicle";
     }
+  };
+
+  const handleOpenReview = (booking: Booking) => {
+    setReviewBooking(booking);
+    setReviewModalOpen(true);
+  };
+
+  const handleReviewSuccess = () => {
+    loadReviews();
   };
 
   const handleTrackTrip = (booking: Booking) => {
@@ -364,6 +400,44 @@ const MyBookings = () => {
                               </div>
                             </div>
 
+                            {/* Review Display for Past Trips */}
+                            {isPastTrip(booking) && (
+                              <div className="mb-4">
+                                {(() => {
+                                  const review = getReviewForBooking(booking.id);
+                                  if (review) {
+                                    return (
+                                      <div className="p-3 rounded-xl bg-gold/10 border border-gold/30">
+                                        <div className="flex items-center gap-2 mb-1">
+                                          <div className="flex">
+                                            {[1, 2, 3, 4, 5].map((star) => (
+                                              <Star
+                                                key={star}
+                                                className={`w-4 h-4 ${
+                                                  star <= review.rating
+                                                    ? "text-gold fill-gold"
+                                                    : "text-muted-foreground/30"
+                                                }`}
+                                              />
+                                            ))}
+                                          </div>
+                                          <span className="text-xs text-muted-foreground">
+                                            Your review
+                                          </span>
+                                        </div>
+                                        {review.review_text && (
+                                          <p className="text-sm text-foreground line-clamp-2">
+                                            "{review.review_text}"
+                                          </p>
+                                        )}
+                                      </div>
+                                    );
+                                  }
+                                  return null;
+                                })()}
+                              </div>
+                            )}
+
                             {/* Actions */}
                             <div className="flex flex-wrap gap-2">
                               <Button
@@ -379,10 +453,30 @@ const MyBookings = () => {
                                 <Button
                                   size="sm"
                                   onClick={() => handleTrackTrip(booking)}
-                                  className="gap-2 bg-green-600 hover:bg-green-700"
+                                  className="gap-2 bg-success hover:bg-success/90"
                                 >
                                   <Navigation className="w-4 h-4" />
                                   Track Trip
+                                </Button>
+                              )}
+                              {isPastTrip(booking) && (
+                                <Button
+                                  size="sm"
+                                  variant={getReviewForBooking(booking.id) ? "outline" : "default"}
+                                  onClick={() => handleOpenReview(booking)}
+                                  className={`gap-2 ${!getReviewForBooking(booking.id) ? 'bg-gold hover:bg-gold/90 text-primary-foreground' : ''}`}
+                                >
+                                  {getReviewForBooking(booking.id) ? (
+                                    <>
+                                      <Edit className="w-4 h-4" />
+                                      Edit Review
+                                    </>
+                                  ) : (
+                                    <>
+                                      <MessageSquare className="w-4 h-4" />
+                                      Rate Trip
+                                    </>
+                                  )}
                                 </Button>
                               )}
                               <Button
@@ -523,6 +617,35 @@ const MyBookings = () => {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Review Modal */}
+      {reviewBooking && user && (
+        <ReviewModal
+          isOpen={reviewModalOpen}
+          onClose={() => {
+            setReviewModalOpen(false);
+            setReviewBooking(null);
+          }}
+          onSuccess={handleReviewSuccess}
+          bookingId={reviewBooking.id}
+          userId={user.id}
+          tripDetails={{
+            from: reviewBooking.from_location,
+            to: reviewBooking.to_location,
+            date: new Date(reviewBooking.travel_date).toLocaleDateString(),
+            vehicleType: reviewBooking.booking_type.replace("_", " "),
+          }}
+          existingReview={
+            getReviewForBooking(reviewBooking.id) 
+              ? {
+                  id: getReviewForBooking(reviewBooking.id)!.id,
+                  rating: getReviewForBooking(reviewBooking.id)!.rating,
+                  review_text: getReviewForBooking(reviewBooking.id)!.review_text,
+                }
+              : undefined
+          }
+        />
+      )}
     </div>
   );
 };
