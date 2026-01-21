@@ -9,6 +9,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useBooking } from "@/hooks/useBooking";
 import BusSeatSelector from "./BusSeatSelector";
 import EnhancedTicket from "./EnhancedTicket";
+import PaymentModal from "./PaymentModal";
 
 const transportTypes = [
   { id: "bus", label: "Bus", icon: Bus, color: "from-blue-500 to-cyan-500" },
@@ -64,6 +65,8 @@ const BookingTabs = () => {
   const [activeTab, setActiveTab] = useState("bus");
   const [showSeatSelector, setShowSeatSelector] = useState(false);
   const [showTicket, setShowTicket] = useState(false);
+  const [showPayment, setShowPayment] = useState(false);
+  const [pendingBookingPrice, setPendingBookingPrice] = useState(0);
   const [bookingResult, setBookingResult] = useState<{
     finalPrice: number;
     discountPercentage: number;
@@ -135,7 +138,7 @@ const BookingTabs = () => {
     }
   };
 
-  const handleDirectBooking = async () => {
+  const handleProceedToPayment = () => {
     if (!user) {
       toast.error("Please login to book", {
         action: {
@@ -156,7 +159,15 @@ const BookingTabs = () => {
       return;
     }
 
-    const basePrice = calculatePrice();
+    const price = calculatePrice();
+    setPendingBookingPrice(price);
+    setShowPayment(true);
+  };
+
+  const handlePaymentSuccess = async () => {
+    setShowPayment(false);
+
+    const basePrice = pendingBookingPrice;
     
     let vehicleInfo: Record<string, unknown> = {};
     let bookingType: "cab" | "car_rental" | "flight" = "cab";
@@ -538,17 +549,17 @@ const BookingTabs = () => {
                           </Button>
                         ) : (
                           <Button 
-                            onClick={handleDirectBooking} 
+                            onClick={handleProceedToPayment} 
                             disabled={loading}
                             className="w-full btn-hero py-6 text-lg"
                           >
                             {loading ? (
                               <>
                                 <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                                Booking...
+                                Processing...
                               </>
                             ) : (
-                              getBookingLabel()
+                              `Proceed to Payment - ${getBookingLabel()}`
                             )}
                           </Button>
                         )}
@@ -566,6 +577,19 @@ const BookingTabs = () => {
               </AnimatePresence>
             </div>
           </Tabs>
+
+          {/* Payment Modal for non-bus bookings */}
+          <PaymentModal
+            isOpen={showPayment}
+            onClose={() => setShowPayment(false)}
+            onSuccess={handlePaymentSuccess}
+            amount={pendingBookingPrice}
+            bookingDetails={{
+              from: bookingDetails.from,
+              to: bookingDetails.to,
+              date: bookingDetails.date,
+            }}
+          />
         </motion.div>
       </div>
     </section>

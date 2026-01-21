@@ -8,6 +8,7 @@ import { useRealtimeSeats } from "@/hooks/useRealtimeSeats";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import EnhancedTicket from "./EnhancedTicket";
+import PaymentModal from "./PaymentModal";
 
 interface BusSeatSelectorProps {
   from: string;
@@ -81,6 +82,7 @@ const BusSeatSelector = ({ from, to, date, onBack }: BusSeatSelectorProps) => {
   const [selectedBus, setSelectedBus] = useState<string | null>(null);
   const [selectedSeats, setSelectedSeats] = useState<string[]>([]);
   const [showTicket, setShowTicket] = useState(false);
+  const [showPayment, setShowPayment] = useState(false);
   const [bookingResult, setBookingResult] = useState<{
     finalPrice: number;
     discountPercentage: number;
@@ -169,7 +171,7 @@ const BusSeatSelector = ({ from, to, date, onBack }: BusSeatSelectorProps) => {
     ? basePrice * (1 - discountPreview.discountPercentage / 100)
     : basePrice;
 
-  const handleBooking = async () => {
+  const handleProceedToPayment = () => {
     if (!user) {
       toast.error("Please login to book tickets", {
         action: {
@@ -185,6 +187,12 @@ const BusSeatSelector = ({ from, to, date, onBack }: BusSeatSelectorProps) => {
       return;
     }
 
+    setShowPayment(true);
+  };
+
+  const handlePaymentSuccess = async () => {
+    setShowPayment(false);
+    
     const { result, error } = await createBooking({
       booking_type: "bus",
       from_location: from,
@@ -480,23 +488,36 @@ const BusSeatSelector = ({ from, to, date, onBack }: BusSeatSelectorProps) => {
               )}
 
               <Button
-                onClick={handleBooking}
+                onClick={handleProceedToPayment}
                 disabled={loading}
                 className="w-full mt-4 bg-white text-primary hover:bg-white/90 font-semibold py-6"
               >
                 {loading ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Booking...
+                    Processing...
                   </>
                 ) : (
-                  "Proceed to Book"
+                  "Proceed to Payment"
                 )}
               </Button>
             </motion.div>
           )}
         </div>
       )}
+
+      {/* Payment Modal */}
+      <PaymentModal
+        isOpen={showPayment}
+        onClose={() => setShowPayment(false)}
+        onSuccess={handlePaymentSuccess}
+        amount={discountedPrice}
+        bookingDetails={{
+          from,
+          to,
+          date,
+        }}
+      />
     </div>
   );
 };
