@@ -1,1 +1,7 @@
 project_id = "amqiqlodwgbqxbhiamet"
+
+[functions.ai-assistant]
+verify_jwt = false
+
+[functions.send-sos-sms]
+verify_jwt = false
