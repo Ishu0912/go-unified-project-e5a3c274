@@ -99,6 +99,31 @@ export const useBooking = () => {
 
       if (error) throw error;
 
+      // Send confirmation email
+      if (user.email) {
+        try {
+          await supabase.functions.invoke("send-email", {
+            body: {
+              to: user.email,
+              type: "booking_confirmation",
+              data: {
+                bookingId: `GOUNIFIED-${booking.id.substring(0, 6).toUpperCase()}`,
+                userName: profile?.full_name,
+                bookingType: data.booking_type,
+                from: data.from_location,
+                to: data.to_location,
+                travelDate: data.travel_date,
+                seatNumbers: data.seat_numbers?.join(", "),
+                finalPrice: finalPrice.toFixed(2),
+              },
+            },
+          });
+        } catch (emailError) {
+          console.error("Failed to send confirmation email:", emailError);
+          // Don't fail the booking if email fails
+        }
+      }
+
       return {
         result: {
           id: booking.id,
