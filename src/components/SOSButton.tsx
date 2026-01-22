@@ -1,8 +1,11 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Shield, Phone, MapPin, X, AlertTriangle, Share2, Navigation, Loader2 } from "lucide-react";
+import { Shield, Phone, MapPin, X, AlertTriangle, Share2, Navigation, Loader2, MessageSquare, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 
 interface LocationData {
   latitude: number;
@@ -12,16 +15,30 @@ interface LocationData {
 }
 
 const SOSButton = () => {
+  const { profile } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [isSending, setIsSending] = useState(false);
+  const [isSendingSMS, setIsSendingSMS] = useState(false);
   const [location, setLocation] = useState<LocationData | null>(null);
   const [isGettingLocation, setIsGettingLocation] = useState(false);
-  const [emergencyContacts] = useState([
+  const [emergencyContacts, setEmergencyContacts] = useState<string[]>(() => {
+    const saved = localStorage.getItem("sos-emergency-contacts");
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [newContact, setNewContact] = useState("");
+  const [showAddContact, setShowAddContact] = useState(false);
+  
+  const predefinedContacts = [
     { name: "Police", number: "100" },
     { name: "Women Helpline", number: "181" },
     { name: "Emergency", number: "112" },
     { name: "Ambulance", number: "108" },
-  ]);
+  ];
+
+  // Save contacts to localStorage
+  useEffect(() => {
+    localStorage.setItem("sos-emergency-contacts", JSON.stringify(emergencyContacts));
+  }, [emergencyContacts]);
 
   // Get current location
   const getCurrentLocation = useCallback(() => {
@@ -106,7 +123,7 @@ const SOSButton = () => {
           text: message,
         });
         toast.success("Location shared successfully!");
-      } catch (error) {
+      } catch {
         // User cancelled or share failed, try clipboard
         copyToClipboard(message);
       }
@@ -129,7 +146,87 @@ const SOSButton = () => {
     window.location.href = `tel:${number}`;
   };
 
-  // Send SOS Alert
+  // Add emergency contact
+  const addEmergencyContact = () => {
+    if (!newContact.trim()) {
+      toast.error("Please enter a phone number");
+      return;
+    }
+    
+    // Basic phone validation
+    const phoneRegex = /^[\d+\s-]{10,15}$/;
+    if (!phoneRegex.test(newContact.replace(/\s/g, ""))) {
+      toast.error("Please enter a valid phone number");
+      return;
+    }
+
+    if (emergencyContacts.includes(newContact)) {
+      toast.error("This number is already added");
+      return;
+    }
+
+    if (emergencyContacts.length >= 5) {
+      toast.error("Maximum 5 emergency contacts allowed");
+      return;
+    }
+
+    setEmergencyContacts([...emergencyContacts, newContact]);
+    setNewContact("");
+    setShowAddContact(false);
+    toast.success("Emergency contact added");
+  };
+
+  // Remove emergency contact
+  const removeEmergencyContact = (phone: string) => {
+    setEmergencyContacts(emergencyContacts.filter((c) => c !== phone));
+    toast.success("Contact removed");
+  };
+
+  // Send SMS via Edge Function
+  const sendSOSSMS = async () => {
+    if (!location) {
+      toast.error("Location not available. Getting your location...");
+      getCurrentLocation();
+      return;
+    }
+
+    if (emergencyContacts.length === 0) {
+      toast.error("Please add at least one emergency contact to send SMS");
+      setShowAddContact(true);
+      return;
+    }
+
+    setIsSendingSMS(true);
+
+    try {
+      const { data, error } = await supabase.functions.invoke("send-sos-sms", {
+        body: {
+          phoneNumbers: emergencyContacts,
+          latitude: location.latitude,
+          longitude: location.longitude,
+          accuracy: location.accuracy,
+          userName: profile?.full_name || "GO UNIFIED User",
+        },
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      toast.success("📱 SOS SMS Sent!", {
+        description: data.message,
+        duration: 5000,
+      });
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      console.error("Error sending SOS SMS:", error);
+      toast.error("Failed to send SMS: " + errorMessage);
+    } finally {
+      setIsSendingSMS(false);
+    }
+  };
+
+  // Send SOS Alert (Share + SMS)
   const handleSOS = async () => {
     setIsSending(true);
 
@@ -137,9 +234,6 @@ const SOSButton = () => {
     if (!location) {
       getCurrentLocation();
     }
-
-    // Simulate sending alert (in production, this would call a backend API)
-    await new Promise((resolve) => setTimeout(resolve, 2000));
 
     // Try to share location automatically
     const message = generateSOSMessage();
@@ -158,10 +252,15 @@ const SOSButton = () => {
       copyToClipboard(message);
     }
 
+    // Also send SMS if contacts are available
+    if (emergencyContacts.length > 0 && location) {
+      await sendSOSSMS();
+    }
+
     setIsSending(false);
     
     toast.success("🚨 SOS Alert Activated!", {
-      description: "Your location has been prepared for sharing. Stay safe!",
+      description: "Your location has been shared. Stay safe!",
       duration: 5000,
     });
   };
@@ -243,11 +342,11 @@ const SOSButton = () => {
                 )}
               </div>
 
-              {/* Emergency Contacts */}
-              <div className="space-y-3 mb-6">
+              {/* Quick Call - Predefined Contacts */}
+              <div className="space-y-3 mb-4">
                 <p className="text-sm font-medium text-muted-foreground">Quick Call</p>
                 <div className="grid grid-cols-2 gap-2">
-                  {emergencyContacts.map((contact) => (
+                  {predefinedContacts.map((contact) => (
                     <Button
                       key={contact.number}
                       variant="outline"
@@ -264,6 +363,87 @@ const SOSButton = () => {
                 </div>
               </div>
 
+              {/* SMS Emergency Contacts */}
+              <div className="space-y-3 mb-4 p-3 rounded-xl bg-muted/50">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium flex items-center gap-2">
+                    <MessageSquare className="w-4 h-4 text-primary" />
+                    SMS Contacts ({emergencyContacts.length}/5)
+                  </p>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowAddContact(!showAddContact)}
+                    disabled={emergencyContacts.length >= 5}
+                  >
+                    <Plus className="w-4 h-4" />
+                  </Button>
+                </div>
+
+                {showAddContact && (
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="Enter phone number"
+                      value={newContact}
+                      onChange={(e) => setNewContact(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && addEmergencyContact()}
+                    />
+                    <Button size="sm" onClick={addEmergencyContact}>
+                      Add
+                    </Button>
+                  </div>
+                )}
+
+                {emergencyContacts.length > 0 ? (
+                  <div className="space-y-2">
+                    {emergencyContacts.map((phone, idx) => (
+                      <div
+                        key={idx}
+                        className="flex items-center justify-between bg-background rounded-lg px-3 py-2"
+                      >
+                        <span className="text-sm">{phone}</span>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-destructive"
+                          onClick={() => removeEmergencyContact(phone)}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    Add contacts to receive SOS SMS with your location
+                  </p>
+                )}
+              </div>
+
+              {/* Send SMS Button */}
+              <Button
+                variant="outline"
+                onClick={sendSOSSMS}
+                disabled={isGettingLocation || isSendingSMS || emergencyContacts.length === 0}
+                className="w-full justify-center gap-3 py-6 mb-4"
+              >
+                {isSendingSMS ? (
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                ) : (
+                  <MessageSquare className="w-5 h-5 text-primary" />
+                )}
+                <div className="text-left">
+                  <p className="font-medium">
+                    {isSendingSMS ? "Sending SMS..." : "Send SOS SMS"}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {emergencyContacts.length > 0
+                      ? `Send to ${emergencyContacts.length} contact(s)`
+                      : "Add contacts first"}
+                  </p>
+                </div>
+              </Button>
+
               {/* Share Location Button */}
               <Button
                 variant="outline"
@@ -274,7 +454,7 @@ const SOSButton = () => {
                 <Share2 className="w-5 h-5 text-primary" />
                 <div className="text-left">
                   <p className="font-medium">Share Live Location</p>
-                  <p className="text-xs text-muted-foreground">Send to emergency contacts</p>
+                  <p className="text-xs text-muted-foreground">Via WhatsApp, Messages, etc.</p>
                 </div>
               </Button>
 
