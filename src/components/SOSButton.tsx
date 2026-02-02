@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Shield, Phone, MapPin, X, AlertTriangle, Share2, Navigation, Loader2, MessageSquare, Plus, Trash2 } from "lucide-react";
+import { Shield, Phone, MapPin, X, AlertTriangle, Share2, Navigation, Loader2, MessageSquare, Plus, Trash2, Bell } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import SOSNotification from "./SOSNotification";
 
 interface LocationData {
   latitude: number;
@@ -27,6 +28,13 @@ const SOSButton = () => {
   });
   const [newContact, setNewContact] = useState("");
   const [showAddContact, setShowAddContact] = useState(false);
+  const [showPushNotification, setShowPushNotification] = useState(false);
+  const [pushNotificationData, setPushNotificationData] = useState<{
+    senderName: string;
+    latitude: number;
+    longitude: number;
+    timestamp: string;
+  } | null>(null);
   
   const predefinedContacts = [
     { name: "Police", number: "100" },
@@ -226,7 +234,7 @@ const SOSButton = () => {
     }
   };
 
-  // Send SOS Alert (Share + SMS)
+  // Send SOS Alert (Share + SMS + Push Notification)
   const handleSOS = async () => {
     setIsSending(true);
 
@@ -257,10 +265,37 @@ const SOSButton = () => {
       await sendSOSSMS();
     }
 
+    // Trigger push notification for family members (simulated - in real app this would use FCM/Web Push)
+    if (location) {
+      setPushNotificationData({
+        senderName: profile?.full_name || "GO UNIFIED User",
+        latitude: location.latitude,
+        longitude: location.longitude,
+        timestamp: new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" }),
+      });
+      setShowPushNotification(true);
+      
+      // Request browser notification permission and send
+      if ("Notification" in window) {
+        try {
+          const permission = await Notification.requestPermission();
+          if (permission === "granted") {
+            new Notification("🚨 SOS EMERGENCY ALERT", {
+              body: `${profile?.full_name || "User"} needs immediate help!\nLocation: ${location.latitude.toFixed(4)}, ${location.longitude.toFixed(4)}`,
+              icon: "/favicon.ico",
+              requireInteraction: true,
+            });
+          }
+        } catch (e) {
+          console.log("Browser notifications not supported");
+        }
+      }
+    }
+
     setIsSending(false);
     
     toast.success("🚨 SOS Alert Activated!", {
-      description: "Your location has been shared. Stay safe!",
+      description: "Your location has been shared and family notified. Stay safe!",
       duration: 5000,
     });
   };
@@ -273,6 +308,17 @@ const SOSButton = () => {
 
   return (
     <>
+      {/* Push Notification for Family */}
+      {pushNotificationData && (
+        <SOSNotification
+          isOpen={showPushNotification}
+          onClose={() => setShowPushNotification(false)}
+          senderName={pushNotificationData.senderName}
+          latitude={pushNotificationData.latitude}
+          longitude={pushNotificationData.longitude}
+          timestamp={pushNotificationData.timestamp}
+        />
+      )}
       {/* SOS Button */}
       <motion.button
         data-sos-button

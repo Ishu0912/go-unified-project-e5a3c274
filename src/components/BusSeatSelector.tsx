@@ -25,6 +25,29 @@ interface Seat {
   price: number;
 }
 
+// Rate: ₹1 per km
+const PRICE_PER_KM = 1;
+
+// City distances (in km)
+const cityDistances: Record<string, Record<string, number>> = {
+  Chennai: { Coimbatore: 500, Madurai: 460, Tiruchirappalli: 320, Salem: 340, Tirunelveli: 630, Erode: 400, Vellore: 140, Thanjavur: 350, Pondicherry: 150 },
+  Coimbatore: { Chennai: 500, Madurai: 210, Tiruchirappalli: 210, Salem: 160, Tirunelveli: 310, Erode: 100, Vellore: 420, Thanjavur: 250, Pondicherry: 530 },
+  Madurai: { Chennai: 460, Coimbatore: 210, Tiruchirappalli: 140, Salem: 210, Tirunelveli: 160, Erode: 220, Vellore: 400, Thanjavur: 160, Pondicherry: 420 },
+  Tiruchirappalli: { Chennai: 320, Coimbatore: 210, Madurai: 140, Salem: 140, Tirunelveli: 300, Erode: 180, Vellore: 290, Thanjavur: 60, Pondicherry: 210 },
+  Salem: { Chennai: 340, Coimbatore: 160, Madurai: 210, Tiruchirappalli: 140, Tirunelveli: 370, Erode: 60, Vellore: 210, Thanjavur: 180, Pondicherry: 280 },
+  Tirunelveli: { Chennai: 630, Coimbatore: 310, Madurai: 160, Tiruchirappalli: 300, Salem: 370, Erode: 380, Vellore: 560, Thanjavur: 340, Pondicherry: 580 },
+  Erode: { Chennai: 400, Coimbatore: 100, Madurai: 220, Tiruchirappalli: 180, Salem: 60, Tirunelveli: 380, Vellore: 320, Thanjavur: 220, Pondicherry: 380 },
+  Vellore: { Chennai: 140, Coimbatore: 420, Madurai: 400, Tiruchirappalli: 290, Salem: 210, Tirunelveli: 560, Erode: 320, Thanjavur: 310, Pondicherry: 150 },
+  Thanjavur: { Chennai: 350, Coimbatore: 250, Madurai: 160, Tiruchirappalli: 60, Salem: 180, Tirunelveli: 340, Erode: 220, Vellore: 310, Pondicherry: 230 },
+  Pondicherry: { Chennai: 150, Coimbatore: 530, Madurai: 420, Tiruchirappalli: 210, Salem: 280, Tirunelveli: 580, Erode: 380, Vellore: 150, Thanjavur: 230 },
+};
+
+const getDistance = (from: string, to: string): number => {
+  if (!from || !to || from === to) return 0;
+  return cityDistances[from]?.[to] || 300;
+};
+
+// Bus types with service charge added to base ₹1/km rate
 const busOptions = [
   {
     id: "1",
@@ -32,7 +55,7 @@ const busOptions = [
     departure: "06:00 AM",
     arrival: "12:30 PM",
     duration: "6h 30m",
-    price: 850,
+    serviceCharge: 50, // Added per seat
     rating: 4.8,
     amenities: ["wifi", "ac", "entertainment"],
     type: "Sleeper AC",
@@ -43,7 +66,7 @@ const busOptions = [
     departure: "08:30 AM",
     arrival: "02:00 PM",
     duration: "5h 30m",
-    price: 650,
+    serviceCharge: 30,
     rating: 4.5,
     amenities: ["ac"],
     type: "Semi-Sleeper AC",
@@ -54,7 +77,7 @@ const busOptions = [
     departure: "10:00 PM",
     arrival: "05:30 AM",
     duration: "7h 30m",
-    price: 950,
+    serviceCharge: 75,
     rating: 4.9,
     amenities: ["wifi", "ac", "entertainment"],
     type: "Sleeper AC",
@@ -104,6 +127,11 @@ const BusSeatSelector = ({ from, to, date, onBack }: BusSeatSelectorProps) => {
     to
   );
 
+  // Calculate distance and price
+  const distance = getDistance(from, to);
+  const selectedBusData = busOptions.find((b) => b.id === selectedBus);
+  const pricePerSeat = (distance * PRICE_PER_KM) + (selectedBusData?.serviceCharge || 50);
+
   // Generate seats based on realtime booked data
   const seats = useMemo((): Seat[][] => {
     const rows: Seat[][] = [];
@@ -122,12 +150,12 @@ const BusSeatSelector = ({ from, to, date, onBack }: BusSeatSelectorProps) => {
           status = "women";
         }
         
-        row.push({ id: seatNum, status, price: 850 });
+        row.push({ id: seatNum, status, price: pricePerSeat });
       }
       rows.push(row);
     }
     return rows;
-  }, [bookedSeats, selectedSeats]);
+  }, [bookedSeats, selectedSeats, pricePerSeat]);
 
   // Calculate discount preview when user is logged in
   useEffect(() => {
@@ -165,8 +193,7 @@ const BusSeatSelector = ({ from, to, date, onBack }: BusSeatSelectorProps) => {
     }
   };
 
-  const selectedBusData = busOptions.find((b) => b.id === selectedBus);
-  const basePrice = selectedSeats.length * (selectedBusData?.price || 850);
+  const basePrice = selectedSeats.length * pricePerSeat;
   const discountedPrice = discountPreview 
     ? basePrice * (1 - discountPreview.discountPercentage / 100)
     : basePrice;
@@ -318,48 +345,83 @@ const BusSeatSelector = ({ from, to, date, onBack }: BusSeatSelectorProps) => {
         /* Bus Selection */
         <div className="space-y-4">
           <h3 className="text-lg font-semibold">Available Buses</h3>
-          {busOptions.map((bus) => (
+          
+          {/* Distance & Pricing Info */}
+          {distance > 0 && (
             <motion.div
-              key={bus.id}
-              whileHover={{ scale: 1.01 }}
-              onClick={() => setSelectedBus(bus.id)}
-              className="bg-card border border-border rounded-2xl p-6 cursor-pointer hover:border-primary/50 hover:shadow-md transition-all"
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-gradient-to-r from-primary/10 to-ocean-light/10 border border-primary/20 rounded-xl p-4"
             >
-              <div className="flex items-center justify-between">
-                <div>
-                  <h4 className="font-semibold text-foreground">{bus.name}</h4>
-                  <p className="text-sm text-muted-foreground">{bus.type}</p>
-                </div>
-                <div className="flex items-center gap-6">
-                  <div className="text-center">
-                    <p className="font-bold">{bus.departure}</p>
-                    <p className="text-xs text-muted-foreground">Departure</p>
-                  </div>
-                  <div className="flex items-center gap-1 text-muted-foreground">
-                    <Clock className="w-4 h-4" />
-                    <span className="text-sm">{bus.duration}</span>
-                  </div>
-                  <div className="text-center">
-                    <p className="font-bold">{bus.arrival}</p>
-                    <p className="text-xs text-muted-foreground">Arrival</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-2xl font-bold text-primary">₹{bus.price}</p>
-                    <p className="text-xs text-muted-foreground">per seat</p>
-                  </div>
-                </div>
-              </div>
-              <div className="flex items-center gap-4 mt-4 pt-4 border-t border-border">
+              <div className="flex items-center justify-between flex-wrap gap-2">
                 <div className="flex items-center gap-2">
-                  {bus.amenities.includes("wifi") && <Wifi className="w-4 h-4 text-muted-foreground" />}
-                  {bus.amenities.includes("ac") && <Wind className="w-4 h-4 text-muted-foreground" />}
-                  {bus.amenities.includes("entertainment") && <Tv className="w-4 h-4 text-muted-foreground" />}
+                  <MapPin className="w-4 h-4 text-primary" />
+                  <span className="text-sm font-medium">
+                    {from} → {to}
+                  </span>
                 </div>
-                <span className="text-sm text-muted-foreground">•</span>
-                <span className="text-sm text-success">⭐ {bus.rating} Rating</span>
+                <div className="flex items-center gap-4">
+                  <span className="text-sm text-muted-foreground">
+                    📏 <strong>{distance} km</strong>
+                  </span>
+                  <span className="text-sm text-success font-semibold">
+                    💰 ₹{PRICE_PER_KM}/km + service
+                  </span>
+                </div>
               </div>
             </motion.div>
-          ))}
+          )}
+
+          {busOptions.map((bus) => {
+            const busSeatPrice = (distance * PRICE_PER_KM) + bus.serviceCharge;
+            
+            return (
+              <motion.div
+                key={bus.id}
+                whileHover={{ scale: 1.01 }}
+                onClick={() => setSelectedBus(bus.id)}
+                className="bg-card border border-border rounded-2xl p-6 cursor-pointer hover:border-primary/50 hover:shadow-md transition-all"
+              >
+                <div className="flex items-center justify-between flex-wrap gap-4">
+                  <div>
+                    <h4 className="font-semibold text-foreground">{bus.name}</h4>
+                    <p className="text-sm text-muted-foreground">{bus.type}</p>
+                  </div>
+                  <div className="flex items-center gap-6">
+                    <div className="text-center">
+                      <p className="font-bold">{bus.departure}</p>
+                      <p className="text-xs text-muted-foreground">Departure</p>
+                    </div>
+                    <div className="flex items-center gap-1 text-muted-foreground">
+                      <Clock className="w-4 h-4" />
+                      <span className="text-sm">{bus.duration}</span>
+                    </div>
+                    <div className="text-center">
+                      <p className="font-bold">{bus.arrival}</p>
+                      <p className="text-xs text-muted-foreground">Arrival</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-2xl font-bold text-primary">₹{busSeatPrice}</p>
+                      <p className="text-xs text-muted-foreground">per seat ({distance}km)</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-4 mt-4 pt-4 border-t border-border flex-wrap">
+                  <div className="flex items-center gap-2">
+                    {bus.amenities.includes("wifi") && <Wifi className="w-4 h-4 text-muted-foreground" />}
+                    {bus.amenities.includes("ac") && <Wind className="w-4 h-4 text-muted-foreground" />}
+                    {bus.amenities.includes("entertainment") && <Tv className="w-4 h-4 text-muted-foreground" />}
+                  </div>
+                  <span className="text-sm text-muted-foreground">•</span>
+                  <span className="text-sm text-success">⭐ {bus.rating} Rating</span>
+                  <span className="text-sm text-muted-foreground">•</span>
+                  <span className="text-xs text-muted-foreground">
+                    ₹{distance} (distance) + ₹{bus.serviceCharge} (service)
+                  </span>
+                </div>
+              </motion.div>
+            );
+          })}
         </div>
       ) : (
         /* Seat Selection */
