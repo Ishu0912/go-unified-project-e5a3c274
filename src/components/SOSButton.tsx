@@ -458,19 +458,43 @@ const SOSButton = () => {
                 </div>
               </Button>
 
-              {/* View on Map */}
+              {/* Embedded Map Preview */}
               {location && (
-                <Button
-                  variant="outline"
-                  onClick={() => window.open(getMapLink(), '_blank')}
-                  className="w-full justify-center gap-3 py-6 mb-4"
-                >
-                  <MapPin className="w-5 h-5 text-primary" />
-                  <div className="text-left">
-                    <p className="font-medium">View on Map</p>
-                    <p className="text-xs text-muted-foreground">Open in Google Maps</p>
+                <div className="mb-4">
+                  <div className="rounded-xl overflow-hidden border border-border">
+                    <iframe
+                      src={`https://www.google.com/maps/embed/v1/place?key=AIzaSyBFw0Qbyq9zTFTd-tUY6dZWTgaQzuU17R8&q=${location.latitude},${location.longitude}&zoom=15`}
+                      width="100%"
+                      height="200"
+                      style={{ border: 0 }}
+                      allowFullScreen
+                      loading="lazy"
+                      referrerPolicy="no-referrer-when-downgrade"
+                      title="Your Location"
+                    />
                   </div>
-                </Button>
+                  <div className="flex gap-2 mt-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => window.open(getMapLink(), '_blank')}
+                      className="flex-1 gap-2"
+                    >
+                      <MapPin className="w-4 h-4" />
+                      Open in Maps
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={getCurrentLocation}
+                      disabled={isGettingLocation}
+                      className="gap-2"
+                    >
+                      <Navigation className="w-4 h-4" />
+                      Refresh
+                    </Button>
+                  </div>
+                </div>
               )}
 
               {/* Main SOS Button */}
