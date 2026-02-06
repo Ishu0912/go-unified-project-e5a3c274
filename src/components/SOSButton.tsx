@@ -1,12 +1,13 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Shield, Phone, MapPin, X, AlertTriangle, Share2, Navigation, Loader2, MessageSquare, Plus, Trash2, Bell } from "lucide-react";
+import { Shield, Phone, MapPin, X, AlertTriangle, Share2, Navigation, Loader2, MessageSquare, Bell } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useEmergencyContacts } from "@/hooks/useEmergencyContacts";
 import SOSNotification from "./SOSNotification";
+import EmergencyContactsManager from "./EmergencyContactsManager";
 
 interface LocationData {
   latitude: number;
@@ -16,18 +17,14 @@ interface LocationData {
 }
 
 const SOSButton = () => {
-  const { profile } = useAuth();
+  const { user, profile } = useAuth();
+  const { contacts, fetchContacts } = useEmergencyContacts();
   const [isOpen, setIsOpen] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [isSendingSMS, setIsSendingSMS] = useState(false);
   const [location, setLocation] = useState<LocationData | null>(null);
   const [isGettingLocation, setIsGettingLocation] = useState(false);
-  const [emergencyContacts, setEmergencyContacts] = useState<string[]>(() => {
-    const saved = localStorage.getItem("sos-emergency-contacts");
-    return saved ? JSON.parse(saved) : [];
-  });
-  const [newContact, setNewContact] = useState("");
-  const [showAddContact, setShowAddContact] = useState(false);
+  const [showManageContacts, setShowManageContacts] = useState(false);
   const [showPushNotification, setShowPushNotification] = useState(false);
   const [pushNotificationData, setPushNotificationData] = useState<{
     senderName: string;
@@ -35,7 +32,7 @@ const SOSButton = () => {
     longitude: number;
     timestamp: string;
   } | null>(null);
-  
+
   const predefinedContacts = [
     { name: "Police", number: "100" },
     { name: "Women Helpline", number: "181" },
@@ -43,272 +40,156 @@ const SOSButton = () => {
     { name: "Ambulance", number: "108" },
   ];
 
-  // Save contacts to localStorage
-  useEffect(() => {
-    localStorage.setItem("sos-emergency-contacts", JSON.stringify(emergencyContacts));
-  }, [emergencyContacts]);
-
-  // Get current location
   const getCurrentLocation = useCallback(() => {
     if (!navigator.geolocation) {
       toast.error("Geolocation is not supported by your browser");
       return;
     }
-
     setIsGettingLocation(true);
-
     navigator.geolocation.getCurrentPosition(
       (position) => {
-        const locationData: LocationData = {
+        setLocation({
           latitude: position.coords.latitude,
           longitude: position.coords.longitude,
           accuracy: position.coords.accuracy,
           timestamp: position.timestamp,
-        };
-        setLocation(locationData);
+        });
         setIsGettingLocation(false);
         toast.success("Location obtained successfully");
       },
       (error) => {
         setIsGettingLocation(false);
-        switch (error.code) {
-          case error.PERMISSION_DENIED:
-            toast.error("Location permission denied. Please enable location access.");
-            break;
-          case error.POSITION_UNAVAILABLE:
-            toast.error("Location information unavailable.");
-            break;
-          case error.TIMEOUT:
-            toast.error("Location request timed out.");
-            break;
-          default:
-            toast.error("Failed to get location.");
-        }
+        toast.error(error.code === error.PERMISSION_DENIED ? "Location permission denied." : "Failed to get location.");
       },
-      {
-        enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 0,
-      }
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
   }, []);
 
-  // Get location when SOS modal opens
   useEffect(() => {
     if (isOpen) {
       getCurrentLocation();
+      fetchContacts();
     }
-  }, [isOpen, getCurrentLocation]);
+  }, [isOpen, getCurrentLocation, fetchContacts]);
 
-  // Generate Google Maps link
   const getMapLink = () => {
     if (!location) return "";
     return `https://www.google.com/maps?q=${location.latitude},${location.longitude}`;
   };
 
-  // Generate SOS message
   const generateSOSMessage = () => {
     const mapLink = getMapLink();
     const time = new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" });
-    
-    return `🚨 SOS EMERGENCY ALERT 🚨\n\nI need immediate help!\n\n📍 My Location:\n${mapLink}\n\nCoordinates: ${location?.latitude.toFixed(6)}, ${location?.longitude.toFixed(6)}\nAccuracy: ${location?.accuracy.toFixed(0)}m\n\n⏰ Time: ${time}\n\n📞 Emergency Numbers:\n• Police: 100\n• Women Helpline: 181\n• Emergency: 112\n\nSent via GO UNIFIED Safety Feature`;
+    return `🚨 SOS EMERGENCY ALERT 🚨\n\nI need immediate help!\n\n📍 My Location:\n${mapLink}\n\nCoordinates: ${location?.latitude.toFixed(6)}, ${location?.longitude.toFixed(6)}\nAccuracy: ${location?.accuracy.toFixed(0)}m\n\n⏰ Time: ${time}\n\nSent via GO UNIFIED Safety Feature`;
   };
 
-  // Share location via Web Share API or copy to clipboard
   const shareLocation = async () => {
-    if (!location) {
-      toast.error("Location not available. Getting your location...");
-      getCurrentLocation();
-      return;
-    }
-
+    if (!location) { getCurrentLocation(); return; }
     const message = generateSOSMessage();
-
     if (navigator.share) {
-      try {
-        await navigator.share({
-          title: "🚨 SOS Emergency Alert",
-          text: message,
-        });
-        toast.success("Location shared successfully!");
-      } catch {
-        // User cancelled or share failed, try clipboard
-        copyToClipboard(message);
-      }
-    } else {
-      copyToClipboard(message);
-    }
+      try { await navigator.share({ title: "🚨 SOS Emergency Alert", text: message }); toast.success("Location shared!"); } catch { copyToClipboard(message); }
+    } else { copyToClipboard(message); }
   };
 
   const copyToClipboard = async (text: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      toast.success("SOS message copied to clipboard! Share it with your emergency contacts.");
-    } catch {
-      toast.error("Failed to copy. Please manually share your location.");
-    }
+    try { await navigator.clipboard.writeText(text); toast.success("SOS message copied to clipboard!"); } catch { toast.error("Failed to copy."); }
   };
 
-  // Make emergency call
-  const makeCall = (number: string) => {
-    window.location.href = `tel:${number}`;
-  };
+  const makeCall = (number: string) => { window.location.href = `tel:${number}`; };
 
-  // Add emergency contact
-  const addEmergencyContact = () => {
-    if (!newContact.trim()) {
-      toast.error("Please enter a phone number");
-      return;
-    }
-    
-    // Basic phone validation
-    const phoneRegex = /^[\d+\s-]{10,15}$/;
-    if (!phoneRegex.test(newContact.replace(/\s/g, ""))) {
-      toast.error("Please enter a valid phone number");
-      return;
-    }
-
-    if (emergencyContacts.includes(newContact)) {
-      toast.error("This number is already added");
-      return;
-    }
-
-    if (emergencyContacts.length >= 5) {
-      toast.error("Maximum 5 emergency contacts allowed");
-      return;
-    }
-
-    setEmergencyContacts([...emergencyContacts, newContact]);
-    setNewContact("");
-    setShowAddContact(false);
-    toast.success("Emergency contact added");
-  };
-
-  // Remove emergency contact
-  const removeEmergencyContact = (phone: string) => {
-    setEmergencyContacts(emergencyContacts.filter((c) => c !== phone));
-    toast.success("Contact removed");
-  };
-
-  // Send SMS via Edge Function
   const sendSOSSMS = async () => {
-    if (!location) {
-      toast.error("Location not available. Getting your location...");
-      getCurrentLocation();
+    if (!location) { getCurrentLocation(); return; }
+    if (contacts.length === 0) {
+      toast.error("Please add emergency contacts first");
+      setShowManageContacts(true);
       return;
     }
-
-    if (emergencyContacts.length === 0) {
-      toast.error("Please add at least one emergency contact to send SMS");
-      setShowAddContact(true);
-      return;
-    }
-
     setIsSendingSMS(true);
-
     try {
+      const phoneNumbers = contacts.map((c) => c.phone);
       const { data, error } = await supabase.functions.invoke("send-sos-sms", {
-        body: {
-          phoneNumbers: emergencyContacts,
-          latitude: location.latitude,
-          longitude: location.longitude,
-          accuracy: location.accuracy,
-          userName: profile?.full_name || "GO UNIFIED User",
-        },
+        body: { phoneNumbers, latitude: location.latitude, longitude: location.longitude, accuracy: location.accuracy, userName: profile?.full_name || "GO UNIFIED User" },
       });
-
-      if (error) {
-        throw error;
-      }
-
-      toast.success("📱 SOS SMS Sent!", {
-        description: data.message,
-        duration: 5000,
-      });
+      if (error) throw error;
+      toast.success("📱 SOS SMS Sent!", { description: data.message, duration: 5000 });
     } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : "Unknown error";
-      console.error("Error sending SOS SMS:", error);
-      toast.error("Failed to send SMS: " + errorMessage);
-    } finally {
-      setIsSendingSMS(false);
-    }
+      const msg = error instanceof Error ? error.message : "Unknown error";
+      toast.error("Failed to send SMS: " + msg);
+    } finally { setIsSendingSMS(false); }
   };
 
-  // Send SOS Alert (Share + SMS + Push Notification)
   const handleSOS = async () => {
+    if (!user) {
+      toast.error("Please login to use SOS feature");
+      return;
+    }
+    if (contacts.length === 0) {
+      toast.error("Please add emergency contacts first");
+      setShowManageContacts(true);
+      return;
+    }
     setIsSending(true);
+    if (!location) getCurrentLocation();
 
-    // Get fresh location
-    if (!location) {
-      getCurrentLocation();
-    }
-
-    // Try to share location automatically
     const message = generateSOSMessage();
-    
     if (navigator.share) {
-      try {
-        await navigator.share({
-          title: "🚨 SOS Emergency Alert",
-          text: message,
-        });
-      } catch {
-        // If share fails, copy to clipboard
-        copyToClipboard(message);
-      }
-    } else {
-      copyToClipboard(message);
-    }
+      try { await navigator.share({ title: "🚨 SOS Emergency Alert", text: message }); } catch { copyToClipboard(message); }
+    } else { copyToClipboard(message); }
 
-    // Also send SMS if contacts are available
-    if (emergencyContacts.length > 0 && location) {
-      await sendSOSSMS();
-    }
+    // Send SMS to all DB contacts
+    if (contacts.length > 0 && location) await sendSOSSMS();
 
-    // Trigger push notification for family members (simulated - in real app this would use FCM/Web Push)
+    // Push notification
     if (location) {
       setPushNotificationData({
         senderName: profile?.full_name || "GO UNIFIED User",
-        latitude: location.latitude,
-        longitude: location.longitude,
+        latitude: location.latitude, longitude: location.longitude,
         timestamp: new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" }),
       });
       setShowPushNotification(true);
-      
-      // Request browser notification permission and send
+
       if ("Notification" in window) {
         try {
           const permission = await Notification.requestPermission();
           if (permission === "granted") {
             new Notification("🚨 SOS EMERGENCY ALERT", {
               body: `${profile?.full_name || "User"} needs immediate help!\nLocation: ${location.latitude.toFixed(4)}, ${location.longitude.toFixed(4)}`,
-              icon: "/favicon.ico",
-              requireInteraction: true,
+              icon: "/favicon.ico", requireInteraction: true,
             });
           }
-        } catch (e) {
-          console.log("Browser notifications not supported");
-        }
+        } catch { /* not supported */ }
+      }
+
+      // Send SOS email to each contact
+      for (const contact of contacts) {
+        try {
+          await supabase.functions.invoke("send-email", {
+            body: {
+              to: undefined, // SMS-only contacts may not have email
+              type: "sos_alert",
+              data: {
+                userName: profile?.full_name || "User",
+                contactName: contact.name,
+                latitude: location.latitude,
+                longitude: location.longitude,
+                mapLink: getMapLink(),
+                timestamp: new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" }),
+              },
+            },
+          });
+        } catch { /* email optional */ }
       }
     }
 
     setIsSending(false);
-    
     toast.success("🚨 SOS Alert Activated!", {
-      description: "Your location has been shared and family notified. Stay safe!",
+      description: `Alert sent to ${contacts.length} family member(s). Stay safe!`,
       duration: 5000,
     });
   };
 
-  // Quick SOS - Long press activation
-  const handleQuickSOS = () => {
-    getCurrentLocation();
-    setIsOpen(true);
-  };
-
   return (
     <>
-      {/* Push Notification for Family */}
       {pushNotificationData && (
         <SOSNotification
           isOpen={showPushNotification}
@@ -319,12 +200,13 @@ const SOSButton = () => {
           timestamp={pushNotificationData.timestamp}
         />
       )}
+
       {/* SOS Button */}
       <motion.button
         data-sos-button
         whileHover={{ scale: 1.1 }}
         whileTap={{ scale: 0.9 }}
-        onClick={handleQuickSOS}
+        onClick={() => setIsOpen(true)}
         className="fixed bottom-6 left-6 z-50 w-14 h-14 rounded-full bg-destructive text-white shadow-lg shadow-destructive/40 flex items-center justify-center"
         aria-label="Emergency SOS"
       >
@@ -335,16 +217,12 @@ const SOSButton = () => {
       <AnimatePresence>
         {isOpen && (
           <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
             onClick={() => setIsOpen(false)}
           >
             <motion.div
-              initial={{ scale: 0.9, y: 20 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.9, y: 20 }}
+              initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }}
               onClick={(e) => e.stopPropagation()}
               className="bg-card rounded-3xl p-6 max-w-md w-full shadow-2xl max-h-[90vh] overflow-y-auto"
             >
@@ -364,206 +242,142 @@ const SOSButton = () => {
                 </Button>
               </div>
 
-              {/* Location Status */}
-              <div className="mb-4 p-3 rounded-xl bg-muted/50">
-                <div className="flex items-center gap-2 mb-2">
-                  <Navigation className="w-4 h-4 text-primary" />
-                  <span className="text-sm font-medium">Your Location</span>
+              {/* Manage Contacts Toggle */}
+              {showManageContacts ? (
+                <div className="mb-4">
+                  <EmergencyContactsManager compact onDone={() => setShowManageContacts(false)} />
                 </div>
-                {isGettingLocation ? (
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Getting your location...
-                  </div>
-                ) : location ? (
-                  <div className="text-sm text-muted-foreground">
-                    <p>Lat: {location.latitude.toFixed(6)}</p>
-                    <p>Long: {location.longitude.toFixed(6)}</p>
-                    <p className="text-xs mt-1">Accuracy: ~{location.accuracy.toFixed(0)}m</p>
-                  </div>
-                ) : (
-                  <Button variant="outline" size="sm" onClick={getCurrentLocation}>
-                    Enable Location
-                  </Button>
-                )}
-              </div>
-
-              {/* Quick Call - Predefined Contacts */}
-              <div className="space-y-3 mb-4">
-                <p className="text-sm font-medium text-muted-foreground">Quick Call</p>
-                <div className="grid grid-cols-2 gap-2">
-                  {predefinedContacts.map((contact) => (
-                    <Button
-                      key={contact.number}
-                      variant="outline"
-                      onClick={() => makeCall(contact.number)}
-                      className="justify-start gap-2 py-4"
-                    >
-                      <Phone className="w-4 h-4 text-destructive" />
-                      <div className="text-left">
-                        <p className="font-medium text-sm">{contact.name}</p>
-                        <p className="text-xs text-muted-foreground">{contact.number}</p>
+              ) : (
+                <>
+                  {/* Family Contacts Summary */}
+                  <div className="mb-4 p-3 rounded-xl bg-muted/50">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm font-medium flex items-center gap-2">
+                        <Bell className="w-4 h-4 text-primary" />
+                        Family Contacts ({contacts.length}/5)
+                      </span>
+                      <Button variant="ghost" size="sm" onClick={() => setShowManageContacts(true)}>
+                        {contacts.length === 0 ? "Add" : "Manage"}
+                      </Button>
+                    </div>
+                    {contacts.length > 0 ? (
+                      <div className="space-y-2">
+                        {contacts.map((c) => (
+                          <div key={c.id} className="flex items-center gap-2">
+                            {c.photo_url ? (
+                              <img src={c.photo_url} alt={c.name} className="w-8 h-8 rounded-full object-cover" />
+                            ) : (
+                              <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">
+                                {c.name.charAt(0)}
+                              </div>
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium truncate">{c.name}</p>
+                              <p className="text-xs text-muted-foreground">{c.phone} {c.relationship ? `• ${c.relationship}` : ""}</p>
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                    </Button>
-                  ))}
-                </div>
-              </div>
-
-              {/* SMS Emergency Contacts */}
-              <div className="space-y-3 mb-4 p-3 rounded-xl bg-muted/50">
-                <div className="flex items-center justify-between">
-                  <p className="text-sm font-medium flex items-center gap-2">
-                    <MessageSquare className="w-4 h-4 text-primary" />
-                    SMS Contacts ({emergencyContacts.length}/5)
-                  </p>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setShowAddContact(!showAddContact)}
-                    disabled={emergencyContacts.length >= 5}
-                  >
-                    <Plus className="w-4 h-4" />
-                  </Button>
-                </div>
-
-                {showAddContact && (
-                  <div className="flex gap-2">
-                    <Input
-                      placeholder="Enter phone number"
-                      value={newContact}
-                      onChange={(e) => setNewContact(e.target.value)}
-                      onKeyDown={(e) => e.key === "Enter" && addEmergencyContact()}
-                    />
-                    <Button size="sm" onClick={addEmergencyContact}>
-                      Add
-                    </Button>
+                    ) : (
+                      <p className="text-xs text-destructive font-medium">⚠️ Add family members to receive SOS alerts</p>
+                    )}
                   </div>
-                )}
 
-                {emergencyContacts.length > 0 ? (
-                  <div className="space-y-2">
-                    {emergencyContacts.map((phone, idx) => (
-                      <div
-                        key={idx}
-                        className="flex items-center justify-between bg-background rounded-lg px-3 py-2"
-                      >
-                        <span className="text-sm">{phone}</span>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-destructive"
-                          onClick={() => removeEmergencyContact(phone)}
-                        >
-                          <Trash2 className="w-4 h-4" />
+                  {/* Location Status */}
+                  <div className="mb-4 p-3 rounded-xl bg-muted/50">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Navigation className="w-4 h-4 text-primary" />
+                      <span className="text-sm font-medium">Your Location</span>
+                    </div>
+                    {isGettingLocation ? (
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Loader2 className="w-4 h-4 animate-spin" /> Getting your location...
+                      </div>
+                    ) : location ? (
+                      <div className="text-sm text-muted-foreground">
+                        <p>Lat: {location.latitude.toFixed(6)}, Long: {location.longitude.toFixed(6)}</p>
+                        <p className="text-xs mt-1">Accuracy: ~{location.accuracy.toFixed(0)}m</p>
+                      </div>
+                    ) : (
+                      <Button variant="outline" size="sm" onClick={getCurrentLocation}>Enable Location</Button>
+                    )}
+                  </div>
+
+                  {/* Quick Call */}
+                  <div className="space-y-3 mb-4">
+                    <p className="text-sm font-medium text-muted-foreground">Quick Call</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {predefinedContacts.map((contact) => (
+                        <Button key={contact.number} variant="outline" onClick={() => makeCall(contact.number)} className="justify-start gap-2 py-4">
+                          <Phone className="w-4 h-4 text-destructive" />
+                          <div className="text-left">
+                            <p className="font-medium text-sm">{contact.name}</p>
+                            <p className="text-xs text-muted-foreground">{contact.number}</p>
+                          </div>
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Send SMS Button */}
+                  <Button variant="outline" onClick={sendSOSSMS} disabled={isGettingLocation || isSendingSMS || contacts.length === 0} className="w-full justify-center gap-3 py-6 mb-4">
+                    {isSendingSMS ? <Loader2 className="w-5 h-5 animate-spin" /> : <MessageSquare className="w-5 h-5 text-primary" />}
+                    <div className="text-left">
+                      <p className="font-medium">{isSendingSMS ? "Sending SMS..." : "Send SOS SMS"}</p>
+                      <p className="text-xs text-muted-foreground">{contacts.length > 0 ? `Send to ${contacts.length} family member(s)` : "Add contacts first"}</p>
+                    </div>
+                  </Button>
+
+                  {/* Share Location */}
+                  <Button variant="outline" onClick={shareLocation} disabled={isGettingLocation} className="w-full justify-center gap-3 py-6 mb-4">
+                    <Share2 className="w-5 h-5 text-primary" />
+                    <div className="text-left">
+                      <p className="font-medium">Share Live Location</p>
+                      <p className="text-xs text-muted-foreground">Via WhatsApp, Messages, etc.</p>
+                    </div>
+                  </Button>
+
+                  {/* Map Preview */}
+                  {location && (
+                    <div className="mb-4">
+                      <div className="rounded-xl overflow-hidden border border-border">
+                        <iframe
+                          src={`https://www.google.com/maps/embed/v1/place?key=AIzaSyBFw0Qbyq9zTFTd-tUY6dZWTgaQzuU17R8&q=${location.latitude},${location.longitude}&zoom=15`}
+                          width="100%" height="200" style={{ border: 0 }} allowFullScreen loading="lazy"
+                          referrerPolicy="no-referrer-when-downgrade" title="Your Location"
+                        />
+                      </div>
+                      <div className="flex gap-2 mt-2">
+                        <Button variant="outline" size="sm" onClick={() => window.open(getMapLink(), '_blank')} className="flex-1 gap-2">
+                          <MapPin className="w-4 h-4" /> Open in Maps
+                        </Button>
+                        <Button variant="outline" size="sm" onClick={getCurrentLocation} disabled={isGettingLocation} className="gap-2">
+                          <Navigation className="w-4 h-4" /> Refresh
                         </Button>
                       </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-xs text-muted-foreground">
-                    Add contacts to receive SOS SMS with your location
-                  </p>
-                )}
-              </div>
+                    </div>
+                  )}
 
-              {/* Send SMS Button */}
-              <Button
-                variant="outline"
-                onClick={sendSOSSMS}
-                disabled={isGettingLocation || isSendingSMS || emergencyContacts.length === 0}
-                className="w-full justify-center gap-3 py-6 mb-4"
-              >
-                {isSendingSMS ? (
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                ) : (
-                  <MessageSquare className="w-5 h-5 text-primary" />
-                )}
-                <div className="text-left">
-                  <p className="font-medium">
-                    {isSendingSMS ? "Sending SMS..." : "Send SOS SMS"}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {emergencyContacts.length > 0
-                      ? `Send to ${emergencyContacts.length} contact(s)`
-                      : "Add contacts first"}
-                  </p>
-                </div>
-              </Button>
+                  {/* Main SOS Button */}
+                  <Button onClick={handleSOS} disabled={isSending || contacts.length === 0} className="w-full py-6 bg-destructive hover:bg-destructive/90 text-lg font-bold">
+                    {isSending ? (
+                      <><Loader2 className="w-5 h-5 mr-2 animate-spin" /> Sending Alert...</>
+                    ) : (
+                      "🚨 SEND SOS ALERT"
+                    )}
+                  </Button>
 
-              {/* Share Location Button */}
-              <Button
-                variant="outline"
-                onClick={shareLocation}
-                disabled={isGettingLocation}
-                className="w-full justify-center gap-3 py-6 mb-4"
-              >
-                <Share2 className="w-5 h-5 text-primary" />
-                <div className="text-left">
-                  <p className="font-medium">Share Live Location</p>
-                  <p className="text-xs text-muted-foreground">Via WhatsApp, Messages, etc.</p>
-                </div>
-              </Button>
+                  {contacts.length === 0 && (
+                    <p className="text-xs text-destructive text-center mt-2 font-medium">
+                      Please add family contacts to activate SOS
+                    </p>
+                  )}
 
-              {/* Embedded Map Preview */}
-              {location && (
-                <div className="mb-4">
-                  <div className="rounded-xl overflow-hidden border border-border">
-                    <iframe
-                      src={`https://www.google.com/maps/embed/v1/place?key=AIzaSyBFw0Qbyq9zTFTd-tUY6dZWTgaQzuU17R8&q=${location.latitude},${location.longitude}&zoom=15`}
-                      width="100%"
-                      height="200"
-                      style={{ border: 0 }}
-                      allowFullScreen
-                      loading="lazy"
-                      referrerPolicy="no-referrer-when-downgrade"
-                      title="Your Location"
-                    />
-                  </div>
-                  <div className="flex gap-2 mt-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => window.open(getMapLink(), '_blank')}
-                      className="flex-1 gap-2"
-                    >
-                      <MapPin className="w-4 h-4" />
-                      Open in Maps
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={getCurrentLocation}
-                      disabled={isGettingLocation}
-                      className="gap-2"
-                    >
-                      <Navigation className="w-4 h-4" />
-                      Refresh
-                    </Button>
-                  </div>
-                </div>
+                  <p className="text-xs text-muted-foreground text-center mt-4">
+                    Your location will be shared with family members and authorities.
+                  </p>
+                </>
               )}
-
-              {/* Main SOS Button */}
-              <Button
-                onClick={handleSOS}
-                disabled={isSending}
-                className="w-full py-6 bg-destructive hover:bg-destructive/90 text-lg font-bold"
-              >
-                {isSending ? (
-                  <>
-                    <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                    Sending Alert...
-                  </>
-                ) : (
-                  "🚨 SEND SOS ALERT"
-                )}
-              </Button>
-
-              <p className="text-xs text-muted-foreground text-center mt-4">
-                Your location will be shared with authorities and emergency contacts.
-                <br />
-                Stay calm and stay in a safe location.
-              </p>
             </motion.div>
           </motion.div>
         )}

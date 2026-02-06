@@ -1,14 +1,16 @@
 import { useState, useEffect, useMemo } from "react";
 import { motion } from "framer-motion";
-import { ArrowLeft, MapPin, Clock, Wifi, Wind, Tv, Loader2, RefreshCw } from "lucide-react";
+import { ArrowLeft, MapPin, Clock, Wifi, Wind, Tv, Loader2, RefreshCw, Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import { useBooking } from "@/hooks/useBooking";
 import { useRealtimeSeats } from "@/hooks/useRealtimeSeats";
+import { useEmergencyContacts } from "@/hooks/useEmergencyContacts";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import EnhancedTicket from "./EnhancedTicket";
 import PaymentModal from "./PaymentModal";
+import EmergencyContactsManager from "./EmergencyContactsManager";
 
 interface BusSeatSelectorProps {
   from: string;
@@ -100,7 +102,9 @@ const ALL_SEATS = generateAllSeatIds();
 const BusSeatSelector = ({ from, to, date, onBack }: BusSeatSelectorProps) => {
   const { user } = useAuth();
   const { createBooking, calculateDiscount, loading } = useBooking();
+  const { contacts } = useEmergencyContacts();
   const navigate = useNavigate();
+  const [showSOSSetup, setShowSOSSetup] = useState(false);
 
   const [selectedBus, setSelectedBus] = useState<string | null>(null);
   const [selectedSeats, setSelectedSeats] = useState<string[]>([]);
@@ -549,6 +553,37 @@ const BusSeatSelector = ({ from, to, date, onBack }: BusSeatSelectorProps) => {
                 </p>
               )}
 
+              {/* SOS Setup Prompt */}
+              {user && contacts.length === 0 && !showSOSSetup && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="mt-4 p-3 rounded-xl bg-white/10 border border-white/20"
+                >
+                  <div className="flex items-center gap-2 mb-2">
+                    <Shield className="w-4 h-4" />
+                    <span className="text-sm font-medium">Safety First!</span>
+                  </div>
+                  <p className="text-xs text-white/80 mb-2">
+                    Add family contacts for SOS emergency alerts during your travel.
+                  </p>
+                  <Button
+                    onClick={() => setShowSOSSetup(true)}
+                    className="w-full bg-white/20 hover:bg-white/30 text-white text-sm"
+                    size="sm"
+                  >
+                    <Shield className="w-4 h-4 mr-2" /> Add SOS Contacts
+                  </Button>
+                </motion.div>
+              )}
+
+              {user && contacts.length > 0 && (
+                <div className="mt-3 flex items-center gap-2 text-white/80 text-sm">
+                  <Shield className="w-4 h-4" />
+                  <span>✅ {contacts.length} SOS contact(s) active</span>
+                </div>
+              )}
+
               <Button
                 onClick={handleProceedToPayment}
                 disabled={loading}
@@ -580,6 +615,25 @@ const BusSeatSelector = ({ from, to, date, onBack }: BusSeatSelectorProps) => {
           date,
         }}
       />
+
+      {/* SOS Setup Modal */}
+      {showSOSSetup && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={() => setShowSOSSetup(false)}
+        >
+          <motion.div
+            initial={{ scale: 0.9, y: 20 }}
+            animate={{ scale: 1, y: 0 }}
+            onClick={(e) => e.stopPropagation()}
+            className="bg-card rounded-3xl p-6 max-w-md w-full shadow-2xl max-h-[80vh] overflow-y-auto"
+          >
+            <EmergencyContactsManager onDone={() => setShowSOSSetup(false)} />
+          </motion.div>
+        </motion.div>
+      )}
     </div>
   );
 };
