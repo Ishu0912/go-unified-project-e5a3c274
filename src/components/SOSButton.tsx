@@ -107,15 +107,39 @@ const SOSButton = () => {
     setIsSendingSMS(true);
     try {
       const phoneNumbers = contacts.map((c) => c.phone);
+      
+      // Try Twilio edge function first
       const { data, error } = await supabase.functions.invoke("send-sos-sms", {
         body: { phoneNumbers, latitude: location.latitude, longitude: location.longitude, accuracy: location.accuracy, userName: profile?.full_name || "GO UNIFIED User" },
       });
-      if (error) throw error;
-      toast.success("📱 SOS SMS Sent!", { description: data.message, duration: 5000 });
-    } catch (error: unknown) {
-      const msg = error instanceof Error ? error.message : "Unknown error";
-      toast.error("Failed to send SMS: " + msg);
+      
+      if (error || (data && data.results?.every((r: any) => !r.success))) {
+        // Fallback: open native SMS app with pre-filled message
+        const message = generateSOSMessage();
+        const allNumbers = phoneNumbers.join(",");
+        const smsUrl = `sms:${allNumbers}?body=${encodeURIComponent(message)}`;
+        window.open(smsUrl, "_self");
+        toast.info("📱 Opening SMS app to send alert...", { duration: 4000 });
+      } else {
+        toast.success("📱 SOS SMS Sent!", { description: data?.message, duration: 5000 });
+      }
+    } catch {
+      // Fallback: open native SMS app
+      const message = generateSOSMessage();
+      const allNumbers = contacts.map((c) => c.phone).join(",");
+      window.open(`sms:${allNumbers}?body=${encodeURIComponent(message)}`, "_self");
+      toast.info("📱 Opening SMS app to send alert...", { duration: 4000 });
     } finally { setIsSendingSMS(false); }
+  };
+
+  const sendViaWhatsApp = () => {
+    if (!location || contacts.length === 0) return;
+    const message = generateSOSMessage();
+    // Open WhatsApp with first contact
+    const phone = contacts[0].phone.replace(/\s/g, "").replace(/^0/, "91");
+    const formattedPhone = phone.startsWith("+") ? phone.substring(1) : (phone.startsWith("91") ? phone : "91" + phone);
+    window.open(`https://wa.me/${formattedPhone}?text=${encodeURIComponent(message)}`, "_blank");
+    toast.success("Opening WhatsApp...");
   };
 
   const handleSOS = async () => {
@@ -131,15 +155,16 @@ const SOSButton = () => {
     setIsSending(true);
     if (!location) getCurrentLocation();
 
+    // 1. Share via native share or clipboard
     const message = generateSOSMessage();
     if (navigator.share) {
       try { await navigator.share({ title: "🚨 SOS Emergency Alert", text: message }); } catch { copyToClipboard(message); }
     } else { copyToClipboard(message); }
 
-    // Send SMS to all DB contacts
+    // 2. Send SMS (Twilio or native fallback)
     if (contacts.length > 0 && location) await sendSOSSMS();
 
-    // Push notification
+    // 3. Push notification
     if (location) {
       setPushNotificationData({
         senderName: profile?.full_name || "GO UNIFIED User",
@@ -158,26 +183,6 @@ const SOSButton = () => {
             });
           }
         } catch { /* not supported */ }
-      }
-
-      // Send SOS email to each contact
-      for (const contact of contacts) {
-        try {
-          await supabase.functions.invoke("send-email", {
-            body: {
-              to: undefined, // SMS-only contacts may not have email
-              type: "sos_alert",
-              data: {
-                userName: profile?.full_name || "User",
-                contactName: contact.name,
-                latitude: location.latitude,
-                longitude: location.longitude,
-                mapLink: getMapLink(),
-                timestamp: new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" }),
-              },
-            },
-          });
-        } catch { /* email optional */ }
       }
     }
 
@@ -325,6 +330,15 @@ const SOSButton = () => {
                     <div className="text-left">
                       <p className="font-medium">{isSendingSMS ? "Sending SMS..." : "Send SOS SMS"}</p>
                       <p className="text-xs text-muted-foreground">{contacts.length > 0 ? `Send to ${contacts.length} family member(s)` : "Add contacts first"}</p>
+                    </div>
+                  </Button>
+
+                  {/* WhatsApp Alert */}
+                  <Button variant="outline" onClick={sendViaWhatsApp} disabled={isGettingLocation || !location || contacts.length === 0} className="w-full justify-center gap-3 py-6 mb-4">
+                    <MessageSquare className="w-5 h-5 text-green-600" />
+                    <div className="text-left">
+                      <p className="font-medium">Send via WhatsApp</p>
+                      <p className="text-xs text-muted-foreground">Alert family on WhatsApp</p>
                     </div>
                   </Button>
 
