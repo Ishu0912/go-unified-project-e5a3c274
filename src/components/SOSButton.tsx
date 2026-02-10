@@ -212,7 +212,7 @@ const SOSButton = () => {
         whileHover={{ scale: 1.1 }}
         whileTap={{ scale: 0.9 }}
         onClick={() => setIsOpen(true)}
-        className="fixed bottom-6 left-6 z-50 w-14 h-14 rounded-full bg-destructive text-white shadow-lg shadow-destructive/40 flex items-center justify-center"
+        className="fixed bottom-24 left-6 z-50 w-14 h-14 rounded-full bg-destructive text-white shadow-lg shadow-destructive/40 flex items-center justify-center"
         aria-label="Emergency SOS"
       >
         <Shield className="w-6 h-6" />
