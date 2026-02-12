@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./useAuth";
+import { useLoyaltyPoints } from "./useLoyaltyPoints";
 
 interface BookingData {
   booking_type: "bus" | "cab" | "car_rental" | "flight";
@@ -23,6 +24,7 @@ interface BookingResult {
 
 export const useBooking = () => {
   const { user, profile } = useAuth();
+  const { earnPoints } = useLoyaltyPoints();
   const [loading, setLoading] = useState(false);
 
   const calculateDiscount = async () => {
@@ -121,6 +123,16 @@ export const useBooking = () => {
         } catch (emailError) {
           console.error("Failed to send confirmation email:", emailError);
           // Don't fail the booking if email fails
+        }
+      }
+
+      // Earn loyalty points (10% of final price as points)
+      const pointsEarned = Math.floor(finalPrice * 0.1);
+      if (pointsEarned > 0) {
+        try {
+          await earnPoints(pointsEarned, `Booking: ${data.from_location} → ${data.to_location}`, booking.id);
+        } catch (e) {
+          console.error("Failed to earn loyalty points:", e);
         }
       }
 

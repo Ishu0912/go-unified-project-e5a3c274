@@ -1,21 +1,25 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Menu, X, Phone, Shield, Ticket } from "lucide-react";
+import { Menu, X, Phone, Shield, Ticket, BarChart3 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
 import VoiceButton from "./VoiceButton";
 import UserMenu from "./UserMenu";
+import ThemeToggle from "./ThemeToggle";
+import LanguageSelector from "./LanguageSelector";
+import { useLanguage } from "@/hooks/useLanguage";
 
 const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const { t } = useLanguage();
 
   const navLinks = [
-    { name: "Home", href: "#home" },
-    { name: "Bus", href: "#booking" },
-    { name: "Cab", href: "#booking" },
-    { name: "Car Rental", href: "#booking" },
-    { name: "Flights", href: "#booking" },
-    { name: "Track", href: "#track" },
+    { name: t("nav.home"), href: "#home" },
+    { name: t("nav.bus"), href: "#booking" },
+    { name: t("nav.cab"), href: "#booking" },
+    { name: t("nav.car_rental"), href: "#booking" },
+    { name: t("nav.flights"), href: "#booking" },
+    { name: t("nav.track"), href: "#track" },
   ];
 
   return (
@@ -57,13 +61,21 @@ const Header = () => {
             </nav>
 
             {/* Actions */}
-            <div className="hidden lg:flex items-center gap-3">
+            <div className="hidden lg:flex items-center gap-2">
               <Link to="/bookings">
                 <Button variant="ghost" size="sm" className="gap-2">
                   <Ticket className="w-4 h-4" />
-                  My Bookings
+                  {t("nav.my_bookings")}
                 </Button>
               </Link>
+              <Link to="/analytics">
+                <Button variant="ghost" size="sm" className="gap-2">
+                  <BarChart3 className="w-4 h-4" />
+                  {t("nav.analytics")}
+                </Button>
+              </Link>
+              <LanguageSelector />
+              <ThemeToggle />
               <VoiceButton variant="header" />
               <Button
                 variant="destructive"
@@ -76,22 +88,26 @@ const Header = () => {
               </Button>
               <Button variant="ghost" size="sm">
                 <Phone className="w-4 h-4 mr-2" />
-                Support
+                {t("nav.support")}
               </Button>
               <UserMenu />
             </div>
 
             {/* Mobile Menu Button */}
-            <button
-              className="lg:hidden p-2"
-              onClick={() => setIsMenuOpen(!isMenuOpen)}
-            >
-              {isMenuOpen ? (
-                <X className="w-6 h-6 text-foreground" />
-              ) : (
-                <Menu className="w-6 h-6 text-foreground" />
-              )}
-            </button>
+            <div className="lg:hidden flex items-center gap-2">
+              <LanguageSelector />
+              <ThemeToggle />
+              <button
+                className="p-2"
+                onClick={() => setIsMenuOpen(!isMenuOpen)}
+              >
+                {isMenuOpen ? (
+                  <X className="w-6 h-6 text-foreground" />
+                ) : (
+                  <Menu className="w-6 h-6 text-foreground" />
+                )}
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -122,7 +138,15 @@ const Header = () => {
                 className="text-foreground/80 hover:text-primary transition-colors py-2 flex items-center gap-2"
               >
                 <Ticket className="w-4 h-4" />
-                My Bookings
+                {t("nav.my_bookings")}
+              </Link>
+              <Link
+                to="/analytics"
+                onClick={() => setIsMenuOpen(false)}
+                className="text-foreground/80 hover:text-primary transition-colors py-2 flex items-center gap-2"
+              >
+                <BarChart3 className="w-4 h-4" />
+                {t("nav.analytics")}
               </Link>
               <div className="flex gap-2 pt-4 border-t border-border">
                 <Button variant="destructive" size="sm" className="flex-1" data-sos-button>
