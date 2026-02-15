@@ -24,10 +24,10 @@ const tamilNaduCities = [
 ];
 
 const cabTypes = [
-  { id: "mini", name: "Mini", price: 12, capacity: 4 },
-  { id: "sedan", name: "Sedan", price: 15, capacity: 4 },
-  { id: "suv", name: "SUV", price: 20, capacity: 6 },
-  { id: "premium", name: "Premium", price: 25, capacity: 4 },
+  { id: "mini", name: "Mini", price: 2, capacity: 4 },
+  { id: "sedan", name: "Sedan", price: 2, capacity: 4 },
+  { id: "suv", name: "SUV", price: 2, capacity: 6 },
+  { id: "premium", name: "Premium", price: 2, capacity: 4 },
 ];
 
 const rentalOptions = [
