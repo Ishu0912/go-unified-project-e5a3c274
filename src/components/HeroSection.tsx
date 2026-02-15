@@ -16,8 +16,8 @@ const HeroSection = () => {
           alt="Tamil Nadu landscape"
           className="w-full h-full object-cover"
         />
-        <div className="absolute inset-0 bg-gradient-to-r from-ocean-dark/95 via-ocean-dark/80 to-ocean-dark/60" />
-        <div className="absolute inset-0 bg-gradient-to-t from-ocean-dark/90 via-transparent to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-r from-ocean-dark/70 via-ocean-dark/50 to-ocean-dark/30" />
+        <div className="absolute inset-0 bg-gradient-to-t from-ocean-dark/60 via-transparent to-transparent" />
       </div>
 
       {/* Animated Particles */}
