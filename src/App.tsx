@@ -10,6 +10,7 @@ import Auth from "./pages/Auth";
 import ProfileSettings from "./pages/ProfileSettings";
 import MyBookings from "./pages/MyBookings";
 import TripAnalytics from "./pages/TripAnalytics";
+import CustomerSupport from "./pages/CustomerSupport";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -28,6 +29,7 @@ const App = () => (
               <Route path="/profile" element={<ProfileSettings />} />
               <Route path="/bookings" element={<MyBookings />} />
               <Route path="/analytics" element={<TripAnalytics />} />
+              <Route path="/support" element={<CustomerSupport />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>
