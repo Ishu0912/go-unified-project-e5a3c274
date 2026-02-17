@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Menu, X, Phone, Shield, Ticket, BarChart3 } from "lucide-react";
+import { Menu, X, Shield, Ticket, BarChart3 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
 import VoiceButton from "./VoiceButton";
@@ -85,10 +85,6 @@ const Header = () => {
               >
                 <Shield className="w-4 h-4 mr-2" />
                 SOS
-              </Button>
-              <Button variant="ghost" size="sm">
-                <Phone className="w-4 h-4 mr-2" />
-                {t("nav.support")}
               </Button>
               <UserMenu />
             </div>
