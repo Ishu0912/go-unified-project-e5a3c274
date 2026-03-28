@@ -341,7 +341,7 @@ export const generateTicketHTML = (data: TicketData): string => {
       ` : ''}
       
       <div class="qr-section">
-        <div class="qr-code">
+        <canvas id="qrcode"></canvas>
           QR Code<br/>
           <small>Scan at boarding</small>
         </div>
@@ -366,6 +366,12 @@ export const generateTicketHTML = (data: TicketData): string => {
       © ${new Date().getFullYear()} GO UNIFIED Tamil Nadu Transport
     </div>
   </div>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
+<script>
+  QRCode.toCanvas(document.getElementById('qrcode'), "GOUNIFIED-3B82D5", {
+    width: 80
+  });
+</script>3
 </body>
 </html>
   `;
