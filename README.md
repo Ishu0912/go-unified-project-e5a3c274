@@ -13,3 +13,5 @@ https://go-unified-project-e5a3c274.vercel.app
 - React
 - shadcn-ui
 - Tailwind CSS
+## Team
+Developed by Ishu0912
